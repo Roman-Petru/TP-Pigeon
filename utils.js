@@ -1,0 +1,23 @@
+function chooseServer(username, numberOfServers) {
+    const hash = hashCode(username);
+    const hashedValueInRange = (hash % numberOfServers);
+  
+    return hashedValueInRange;
+  }
+
+  function hashCode(hasheable) {
+    let hash = 0;
+    if (hasheable.length === 0) {
+      return hash;
+    }
+    for (let i = 0; i < hasheable.length; i++) {
+      const char = hasheable.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+    }
+    return Math.abs(hash);
+  };
+
+  module.exports = {
+    chooseServer,
+    hashCode
+  };
