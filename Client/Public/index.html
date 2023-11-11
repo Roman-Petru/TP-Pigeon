@@ -1,0 +1,206 @@
+<!-- public/index.html -->
+
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pigeon</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        form {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            cursor: pointer;
+        }
+        #registerForm {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Pigeon</h1>
+
+    <form id="loginForm">
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" required>
+
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required>
+
+        <button type="button" onclick="login()">Login</button>
+
+        <button type="button" onclick="showRegisterForm()">Register</button>
+
+    </form>
+
+    <form id="registerForm">
+        <label for="newUsername">New Username:</label>
+        <input type="text" id="newUsername" name="newUsername" required>
+
+        <label for="newPassword">New Password:</label>
+        <input type="password" id="newPassword" name="newPassword" required>
+
+        <button type="button" onclick="register()">Register</button>
+        <button type="button" onclick="back()">Back</button>
+    </form>
+
+    <div id="messageContainer"></div>
+
+    <script>
+        
+
+        function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            const formData = new FormData();
+            formData.append('username', username);
+            formData.append('password', password);
+            const formDataObject = {};
+            formData.forEach((value, key) => {
+            formDataObject[key] = value;
+            });
+
+            const jsonData = JSON.stringify(formDataObject);
+
+            function fetchData() {
+            fetch('serverConfig.txt')
+                .then(response => response.text())
+                .then(data => {
+                const configLines = data.trim().split('\n');
+                const config = {};
+
+                configLines.forEach(line => {
+                    const [key, value] = line.split('=');
+                    config[key.trim()] = value.trim();
+                });
+
+
+                const serverUrl = 'http://' + config.contactPointHost + ':' + config.contactPointPort;
+
+                console.log('Sending request to: ', serverUrl)
+                console.log('With body: ', jsonData)
+
+                fetch(serverUrl + '/login', {
+                method: 'POST',
+                body: jsonData,
+                    })
+                    .then(response => {
+                        if (response.ok) {
+                            return response.text();
+                        } else {
+                            throw new Error('Login failed');
+                        }
+                    })
+                    .then(data => {
+                        alert(data);
+                        console.log('Logging user: ', username)
+                        sessionStorage.setItem('username', username);
+                        window.location.href = '/messages.html';
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Login failed. Check your credentials.');
+                    });
+
+                })
+                .catch(error => {
+                console.error('Error reading file:', error);
+                });
+            }
+
+            // Call the function to fetch data
+            fetchData();
+        }
+
+        function showRegisterForm() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('registerForm').style.display = 'block';
+        }
+
+        function back() {
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('registerForm').style.display = 'none';
+        }
+
+        function register() {
+            const newUsername = document.getElementById('newUsername').value;
+            const newPassword = document.getElementById('newPassword').value;
+
+            const formData = new FormData();
+            formData.append('username', newUsername);
+            formData.append('password', newPassword);
+
+            const formDataObject = {};
+            formData.forEach((value, key) => {
+            formDataObject[key] = value;
+            });
+
+            const jsonData = JSON.stringify(formDataObject);
+
+            function fetchData() {
+            fetch('serverConfig.txt')
+                .then(response => response.text())
+                .then(data => {
+                const configLines = data.trim().split('\n');
+                const config = {};
+
+                configLines.forEach(line => {
+                    const [key, value] = line.split('=');
+                    config[key.trim()] = value.trim();
+                });
+
+
+                const serverUrl = 'http://' + config.contactPointHost + ':' + config.contactPointPort;
+
+                console.log('Sending request to: ', serverUrl)
+                console.log('With body: ', jsonData)
+
+                fetch(serverUrl + '/addUser', {
+                method: 'POST',
+                body: jsonData,
+                    })
+                    .then(response => {
+                        if (response.ok) {
+                            return response.text();
+                        } else {
+                            throw new Error('Registration failed');
+                        }
+                    })
+                    .then(data => {
+                        alert(data);
+                    })
+                    .then(back())
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Registration failed. Please try a different username.');
+                    });
+
+                })
+                .catch(error => {
+                console.error('Error reading file:', error);
+                });
+            }
+
+            // Call the function to fetch data
+            fetchData();
+                }
+    </script>
+</body>
+</html>

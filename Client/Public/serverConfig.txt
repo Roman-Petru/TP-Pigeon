@@ -1,0 +1,2 @@
+contactPointHost=localhost
+contactPointPort=3000

@@ -2,88 +2,71 @@ const http = require('http');
 const fs = require('fs');
 const inquirer = require('inquirer');
 const axios = require('axios');
-const { User, users, createUser } = require('./users');
-const { ServerInfo, serversInfo } = require('./serverInfo');
+const { User, users, createUser, handleAddUserRequest, handleLoginRequest } = require('./users');
+const { ServerInfo, serversInfo, serverNumber, assignServerNumber, handleNewServer } = require('./serverInfo');
+const { handleNewConversation, handleGetConversation, handleGetAllConversations } = require('./Conversation/conversation');
+const { handleNewMessage } = require('./Conversation/message');
 const { chooseServer, hashCode } = require('./utils');
 
+function startServer(config) {
+  const server = http.createServer((req, res) => {
 
-function handleLoginRequest(req, res) {
-  let data = '';
+    console.log('New request to: ', req.url);
+  
+    //------------------ROUTER--------------------
 
-  req.on('data', (chunk) => {
-    data += chunk;
-  });
+    res.setHeader('Access-Control-Allow-Origin', '*');
 
-  req.on('end', () => {
-    const requestData = JSON.parse(data);
-    const { username, password } = requestData;
-
-    const hashedPassword = hashCode(password);
-    console.log('users: ', users);
-    console.log('username: ', username, 'password: ', hashedPassword);
-
-    const user = users.find((u) => u.username === username && u.password === hashedPassword);
-    if (user) {
-      res.writeHead(200, { 'Content-Type': 'text/plain' });
-      res.end('Login successful!\n');
+    if (req.method === 'POST' && req.url === '/login') {
+      handleLoginRequest(req, res);
+    } else if (req.method === 'POST' && req.url === '/addUser') {
+      handleAddUserRequest(req, res);
+    } else if (req.method === 'PATCH' && req.url === '/newServer') {
+      handleNewServer(req, res);
+    } else if (req.method === 'POST' && req.url === '/newConversation') {
+      handleNewConversation(req, res);
+    } else if (req.method === 'PATCH' && req.url === '/newMessage') {
+      handleNewMessage(req, res);
+    } else if (req.method === 'GET' && req.url.startsWith('/getConversation')) {
+      handleGetConversation(req, res);
+    } else if (req.method === 'GET' && req.url.startsWith('/getAllConversations')) {
+      handleGetAllConversations(req, res);
     } else {
-      res.writeHead(401, { 'Content-Type': 'text/plain' });
-      res.end('Login failed. Invalid username or password.\n');
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Not Found\n');
     }
   });
-}
 
-function handleAddUserRequest(req, res) {
-
-  let data = '';
-
-  req.on('data', (chunk) => {
-    data += chunk;
+  server.listen(config.port, config.hostname, () => {
+    console.log(`Server is running at http://${config.hostname}:${config.port}/`);
   });
-
-  req.on('end', () => {
-    const requestData = JSON.parse(data);
-    const { username, password } = requestData;
-
-    const userExists = users.some((user) => user.username === username);
-
-    if (userExists) {
-      res.writeHead(400, { 'Content-Type': 'text/plain' });
-      res.end('User already exists.\n');
-    } else {
-      createUser(username, password, chooseServer(username, serversInfo.length));
-      res.writeHead(200, { 'Content-Type': 'text/plain' });
-      res.end('User created.\n');
-    }
-  });
-}
-
-function handleNewServer(req, res) {
-  let data = '';
-
-  req.on('data', (chunk) => {
-    data += chunk;
-  });
-
-  req.on('end', () => {
-    const requestData = JSON.parse(data);
-    const { hostname, port } = requestData;
-
-    console.log('new hostname: ', hostname, 'new port: ', port);
-
-    const newServer = new ServerInfo(hostname, port, serversInfo.length, "OK");
+  
+  if (config.firstServer === true) {
+    const newServer = new ServerInfo(config.hostname, config.port, 0, "OK", true);
     serversInfo.push(newServer);
-
-    const responseBody = {
-      servers_list: serversInfo,
-      users_list: users
-    }
-
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(responseBody));
-
-  });
+    assignServerNumber(0);
+  } else {
+    //syncNewServer()
+    const url = 'http://' + config.contactPointHost + ':' + config.contactPointPort + '/newServer';
+    const requestBody = {
+      hostname: config.hostname,
+      port: config.port,
+    };
+  
+    axios.patch(url, requestBody).then(response => {
+      console.log(response.data);
+      users.push(...response.data.users_list);
+      serversInfo.push(...response.data.servers_list);
+      serverNumber = response.data.servers_list.length - 1;
+      console.log('Server number: ', serverNumber);
+    })
+    .catch(err => {
+      console.log(err);
+    });
+  }
 }
+
+//---------LOAD CONFIG------
 
 const folderPath = __dirname;
 const regexPattern = /^config.*\.json$/;
@@ -119,50 +102,3 @@ fs.readdir(folderPath, (err, files) => {
     startServer(config);
   });
 });
-
-
-function startServer(config) {
-  const server = http.createServer((req, res) => {
-
-    console.log('New request to: ', req.url);
-  
-    //ROUTER
-    if (req.method === 'GET' && req.url === '/login') {
-      handleLoginRequest(req, res);
-    } else if (req.method === 'POST' && req.url === '/addUser') {
-      handleAddUserRequest(req, res);
-    } else if (req.method === 'PATCH' && req.url === '/newServer') {
-      handleNewServer(req, res);
-    } else {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Not Found\n');
-    }
-  });
-
-  server.listen(config.port, config.hostname, () => {
-    console.log(`Server is running at http://${config.hostname}:${config.port}/`);
-  });
-  
-  if (config.firstServer === true) {
-    const newServer = new ServerInfo(config.hostname, config.port, 0, "OK");
-    serversInfo.push(newServer);
-    createUser("root", "root", 0)
-  } else {
-    //syncNewServer()
-    const url = 'http://' + config.contactPointHost + ':' + config.contactPointPort + '/newServer';
-    const requestBody = {
-      hostname: config.hostname,
-      port: config.port,
-    };
-  
-    axios.patch(url, requestBody).then(response => {
-      console.log(response.data);
-      users.push(...response.data.users_list);
-      serversInfo.push(...response.data.servers_list);
-    })
-    .catch(err => {
-      console.log(err);
-    });
-  }
-}
-
