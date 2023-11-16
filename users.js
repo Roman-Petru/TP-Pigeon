@@ -77,7 +77,6 @@ function handleLoginRequest(req, res) {
 
 module.exports = {
     User,
-    users,
     createUser,
     findUser,
     handleAddUserRequest,

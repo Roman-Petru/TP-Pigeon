@@ -90,6 +90,7 @@ function handleNewServer(req, res) {
       } else {
         const newServer = new ServerInfo(hostname, port, serversInfo.length, "UP");
         serversInfo.push(newServer);
+        notifyAllServers("newServer", newServer, newServer.serverNumber);
       }
   
       const responseBody = getMetaInformation();

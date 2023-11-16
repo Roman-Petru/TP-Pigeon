@@ -2,15 +2,18 @@ const http = require('http');
 const fs = require('fs');
 const inquirer = require('inquirer');
 const axios = require('axios');
-const { users, handleAddUserRequest, handleLoginRequest } = require('./users');
-const { ServerInfo, serversInfo, assignServerNumber, getServerNumber, handleNotification, handleNewServer } = require('./serverInfo');
+const { handleAddUserRequest, handleLoginRequest } = require('./users');
+const { ServerInfo, serversInfo, users, conversations, assignServerNumber, getServerNumber, handleNotification, handleNewServer } = require('./serverInfo');
 const { handleNewConversation, handleGetConversation, handleGetAllConversations } = require('./Conversation/conversation');
 const { handleNewMessage } = require('./Conversation/message');
+const { checkServerHealth } = require('./checkServerHealth');
 
 function startServer(config) {
   const server = http.createServer((req, res) => {
 
-    console.log('New request to: ', req.url);
+    if (req.url !== '/heartbeat') {
+      console.log('New request to: ', req.url);
+    }
   
     //------------------ROUTER--------------------
 
@@ -24,7 +27,13 @@ function startServer(config) {
       return;
     }
 
-    if (req.method === 'POST' && req.url === '/login') {
+    if (req.method === 'GET' && req.url === '/heartbeat') {
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.end('OK!\n');
+    } else if (req.method === 'GET' && req.url === '/getServerInfo') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(serversInfo));
+    } else if (req.method === 'POST' && req.url === '/login') {
       handleLoginRequest(req, res);
     } else if (req.method === 'POST' && req.url === '/addUser') {
       handleAddUserRequest(req, res);
@@ -66,13 +75,17 @@ function startServer(config) {
       console.log(response.data);
       users.push(...response.data.users_list);
       serversInfo.push(...response.data.servers_list);
-      assignServerNumber(response.data.servers_list.length - 1);
+      conversations.push(...response.data.conversations_list)
+
+      const searchServer = serversInfo.find((s) => s.hostname === config.hostname && s.port === config.port);
+      assignServerNumber(searchServer.serverNumber);
       console.log('Server number assigned: ', getServerNumber());
     })
     .catch(err => {
       console.log(err);
     });
   }
+  setInterval(checkServerHealth, 2000);
 }
 
 //---------LOAD CONFIG------
