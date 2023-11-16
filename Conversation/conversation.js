@@ -1,7 +1,9 @@
-const { ServerInfo, getServerNumber } = require('../serverInfo');
+const { serversInfo, conversations, putServerDown, notifyAllServers, getServerNumber } = require('../serverInfo');
 const { findUser } = require('../users');
-const url = require('url');  // Import the url module
+const { chooseServer } = require('../utils');
+const url = require('url');
 const querystring = require('querystring');
+const axios = require('axios');
 
 class Conversation {
     constructor(id, admin, inServer) {
@@ -11,12 +13,12 @@ class Conversation {
       this.messages = [];
       this.inServer = inServer;
 
-      console.log(`${this.admin.username} created conversation with id: ${this.id}.`);
+      //console.log(`${this.admin.username} created conversation with id: ${this.id}.`);
     }
 
     addUser(user) {
         this.users.push(user);
-        console.log(`${user.username} added to conversation with id: ${this.id}.`);
+        //console.log(`${user.username} added to conversation with id: ${this.id}.`);
       }
 }
 
@@ -28,8 +30,6 @@ class ConversationDTO {
 }
 
 var id = 0;
-
-const conversations = [];
 
 function findConversation(id) {
   return conversations.find((c) => c.id === id);
@@ -46,11 +46,13 @@ function generateUniqueId() {
 
 function createConversation(fromUser, toUser) {
     const newId = generateUniqueId();
-    const newConv = new Conversation(newId, fromUser, 0);
+    const choosenServer = chooseServer(serversInfo);
+    const newConv = new Conversation(newId, fromUser, choosenServer);
     newConv.addUser(fromUser);
     newConv.addUser(toUser);
     conversations.push(newConv);
-    console.log('New conversation with id: ', newId, ', from user: ', fromUser.username, ', to user: ', toUser.username);
+    console.log('New conversation with id: ', newId, ', from user: ', fromUser.username, ', to user: ', toUser.username, ', in server: ', choosenServer);
+    notifyAllServers("newConversation",newConv , -1)
 }
 
 function handleNewConversation(req, res) {
@@ -83,6 +85,24 @@ function handleNewConversation(req, res) {
   });
 }
 
+function getConversationFromOtherServer(serverNumber, convId) {
+  const url = 'http://' + serversInfo[serverNumber].hostname + ':' + serversInfo[serverNumber].port + '/getConversation?id=' + convId;
+
+  console.log("Searching conversation from server number ", serverNumber);
+
+  return axios.get(url).then(response => {
+    const responseBody = response.data;
+    console.log("Conversation fetched: ", responseBody);
+    return responseBody;
+  })
+  .catch(err => {
+      console.log(err);
+      console.log("Server error trying to get conversation, putting it down and sending it to other servers");
+      putServerDown(serverNumber)
+      notifyAllServers("serverDown", serverNumber, serverNumber)
+  });
+}
+
 
 function handleGetConversation(req, res) {
 
@@ -94,10 +114,20 @@ function handleGetConversation(req, res) {
   const conversation = findConversation(id);
 
   if (conversation) {
-
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(conversation.messages));
-
+    if (conversation.inServer === getServerNumber()) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(conversation.messages));
+    } else {
+      getConversationFromOtherServer(conversation.inServer, id)
+        .then(convFromOtherServer => {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(convFromOtherServer));
+        })
+        .catch(error => {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to fetch conversation' }));
+      });
+    }
   } else {
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Conversation not found.\n');

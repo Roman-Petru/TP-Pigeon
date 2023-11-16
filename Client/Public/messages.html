@@ -34,15 +34,17 @@
     <div id="conversationList">
         <h2>Conversations</h2>
         <ul id="conversationLinks">
-            <!-- Conversation links will be loaded here dynamically -->
         </ul>
-        <button id="newConversationButton" onclick="startNewConversation()">New Conversation</button>
+        <form id="conversationForm">
+            <label for="message">Start conversation with:</label>
+            <input type="text" id="userId" name="userId" placeholder="Write username here" required>
+            <button type="button" onclick="startNewConversation()">Start</button>
+        </form>
     </div>
 
     <div id="conversationDetails">
         <h2>Conversation Details</h2>
         <div id="conversationContent">
-            <!-- Conversation content will be loaded here -->
         </div>
 
         <form id="messageForm">
@@ -54,21 +56,40 @@
 
     <script>
         const username = sessionStorage.getItem('username');
-
-        const usernameHeader = document.getElementById('usernameHeader');
-        if (username) {
-            usernameHeader.textContent = 'Messages for ' + username;
-        } else {
-            usernameHeader.textContent = 'Messages!';
-        }
+        let currentConversationId = '';
 
         function sendMessage() {
-            // Simulate sending a message to the server (HTTP request).
             const messageInput = document.getElementById('message');
             const message = messageInput.value;
+            const conversationId = currentConversationId;
 
-            // For simplicity, we'll just log the message to the console.
-            console.log(`Sending message: ${message}`);
+            const messageData = {
+                conversationId: conversationId,
+                sender: sessionStorage.getItem('username'),
+                message: message
+            };
+
+            console.log('Sending message: ', messageData);
+
+            fetch('http://127.0.0.1:3000/newMessage', {
+                method: 'PATCH',
+                headers: {
+                'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(messageData)
+            })
+            .then(response => {
+                if (response.ok) {
+                console.log('Message sent successfully!');
+                messageInput.value = '';
+                loadConversation(conversationId);
+                } else {
+                console.error('Failed to send message.');
+                }
+            })
+            .catch(error => {
+                console.error('Error sending message:', error);
+            });
         }
 
         function loadConversations() {
@@ -86,25 +107,84 @@
                         const link = document.createElement('a');
                         link.href = '#';
                         link.onclick = () => loadConversation(conversation.id);
-                        link.textContent = conversation.title;
+                        const users = conversation.users.join(', ');
+                        link.textContent = users;
                         listItem.appendChild(link);
                         conversationLinks.appendChild(listItem);
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error fetching conversations:', error);
                     });
-                })
-                .catch(error => {
-                    console.error('Error fetching conversations:', error);
-                });
         }
 
         function loadConversation(conversationId) {
-            // You can use AJAX or fetch to load the conversation content
-            // For simplicity, we'll just update the content directly
-            document.getElementById('conversationContent').innerHTML = `Loading conversation ${conversationId}...`;
+            const conversationContent = document.getElementById('conversationContent');
+            conversationContent.innerHTML = 'Loading conversation...';
+            currentConversationId = conversationId;
+
+            const serverUrl = 'http://' + 'localhost' + ':' + 3000 + '/getConversation?id=' + conversationId;
+            console.log(`Sending request to: ${serverUrl}`);
+
+            fetch(serverUrl)
+                .then(response => response.json())
+                .then(messages => {
+                conversationContent.innerHTML = '';
+                messages.forEach(message => {
+                    const messageElement = document.createElement('div');
+                    const senderAndTimeElement = document.createElement('div');
+                    const messageTextElement = document.createElement('div');
+
+                    senderAndTimeElement.textContent = `Sender: ${message.sender}, Time: ${message.time}`;
+                    messageTextElement.textContent = `${message.message}`;
+
+                    messageElement.appendChild(senderAndTimeElement);
+                    messageElement.appendChild(messageTextElement);
+
+                    messageTextElement.style.fontSize = '1.2em';
+                    messageTextElement.style.marginTop = '5px';
+                    messageTextElement.style.marginBottom = '7px';
+
+                    conversationContent.appendChild(messageElement);
+                   });
+                })
+                .catch(error => {
+                console.error('Error fetching conversation:', error);
+                conversationContent.innerHTML = 'Error loading conversation.';
+                });
         }
 
         function startNewConversation() {
-            // Implement logic to start a new conversation
-            alert('Starting a new conversation...');
+            const userIdInput = document.getElementById('userId');
+            const userId = userIdInput.value;
+
+            const convData = {
+                fromUsername: sessionStorage.getItem('username'),
+                toUsername: userId
+            };
+
+            console.log('Starting new conversation: ', convData);
+
+            fetch('http://127.0.0.1:3000/newConversation', {
+                method: 'POST',
+                headers: {
+                'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(convData)
+            })
+            .then(response => {
+                if (response.ok) {
+                console.log('Conversation started successfully!');
+                userId.value = '';
+                loadConversations();
+                } else {
+                alert("User doesn't exists")
+                console.error('Failed to send message.');
+                }
+            })
+            .catch(error => {
+                console.error('Error sending message:', error);
+            });
         }
 
         window.onload = loadConversations;

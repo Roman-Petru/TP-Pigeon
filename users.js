@@ -1,4 +1,5 @@
 const { hashCode } = require('./utils');
+const { users, notifyAllServers } = require('./serverInfo');
 
 class User {
     constructor(username, password) {
@@ -12,12 +13,11 @@ class User {
       }
 }
 
-const users = [];
-
 function createUser(username, password) {
     const newUser = new User(username, hashCode(password));
     users.push(newUser);
     console.log(`User ${username} added.`);
+    notifyAllServers("newUser", newUser, -1);
 }
 
 function findUser(username) {
@@ -42,7 +42,7 @@ function handleAddUserRequest(req, res) {
       res.writeHead(400, { 'Content-Type': 'text/plain' });
       res.end('User already exists.\n');
     } else {
-      createUser(username, password ); //chooseServer(username, serversInfo.length));
+      createUser(username, password);
       res.writeHead(200, { 'Content-Type': 'text/plain' });
       res.end('User created.\n');
     }

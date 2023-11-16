@@ -1,0 +1,7 @@
+{
+    "firstServer": false,
+    "hostname": "127.0.0.1",
+    "port": 3002,
+    "contactPointHost": "127.0.0.1",
+    "contactPointPort": 3000
+}

@@ -1,8 +1,9 @@
-function chooseServer(username, numberOfServers) {
-    const hash = hashCode(username);
-    const hashedValueInRange = (hash % numberOfServers);
-  
-    return hashedValueInRange;
+function chooseServer(serversInfo) {
+    while(true) {
+      let choosenServer = Math.floor(Math.random() *  serversInfo.length);
+      if (serversInfo[choosenServer].status === "UP")
+        return choosenServer;
+    }
   }
 
   function hashCode(hasheable) {

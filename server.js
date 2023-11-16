@@ -2,11 +2,10 @@ const http = require('http');
 const fs = require('fs');
 const inquirer = require('inquirer');
 const axios = require('axios');
-const { User, users, createUser, handleAddUserRequest, handleLoginRequest } = require('./users');
-const { ServerInfo, serversInfo, serverNumber, assignServerNumber, handleNewServer } = require('./serverInfo');
+const { users, handleAddUserRequest, handleLoginRequest } = require('./users');
+const { ServerInfo, serversInfo, assignServerNumber, getServerNumber, handleNotification, handleNewServer } = require('./serverInfo');
 const { handleNewConversation, handleGetConversation, handleGetAllConversations } = require('./Conversation/conversation');
 const { handleNewMessage } = require('./Conversation/message');
-const { chooseServer, hashCode } = require('./utils');
 
 function startServer(config) {
   const server = http.createServer((req, res) => {
@@ -16,6 +15,14 @@ function startServer(config) {
     //------------------ROUTER--------------------
 
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'PATCH, GET, POST, PUT, DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+      res.writeHead(200);
+      res.end();
+      return;
+    }
 
     if (req.method === 'POST' && req.url === '/login') {
       handleLoginRequest(req, res);
@@ -23,6 +30,8 @@ function startServer(config) {
       handleAddUserRequest(req, res);
     } else if (req.method === 'PATCH' && req.url === '/newServer') {
       handleNewServer(req, res);
+    } else if (req.method === 'POST' && req.url === '/notification') {
+      handleNotification(req, res);
     } else if (req.method === 'POST' && req.url === '/newConversation') {
       handleNewConversation(req, res);
     } else if (req.method === 'PATCH' && req.url === '/newMessage') {
@@ -42,11 +51,11 @@ function startServer(config) {
   });
   
   if (config.firstServer === true) {
-    const newServer = new ServerInfo(config.hostname, config.port, 0, "OK", true);
+    const newServer = new ServerInfo(config.hostname, config.port, 0, "UP");
     serversInfo.push(newServer);
     assignServerNumber(0);
+    console.log('Server number: ', getServerNumber());
   } else {
-    //syncNewServer()
     const url = 'http://' + config.contactPointHost + ':' + config.contactPointPort + '/newServer';
     const requestBody = {
       hostname: config.hostname,
@@ -57,8 +66,8 @@ function startServer(config) {
       console.log(response.data);
       users.push(...response.data.users_list);
       serversInfo.push(...response.data.servers_list);
-      serverNumber = response.data.servers_list.length - 1;
-      console.log('Server number: ', serverNumber);
+      assignServerNumber(response.data.servers_list.length - 1);
+      console.log('Server number assigned: ', getServerNumber());
     })
     .catch(err => {
       console.log(err);

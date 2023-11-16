@@ -1,4 +1,6 @@
 const { Conversation, findConversation } = require('./conversation');
+const { serversInfo, getServerNumber, putServerDown } = require('../serverInfo');
+const axios = require('axios');
 
 class Message {
     constructor(id, sender, message) {
@@ -33,6 +35,24 @@ function createMessage(conversation, sender, message) {
     console.log(`Message "${newMessage.message}" with id ${messageId} added to the conversation ${conversation.id} at ${newMessage.time}.`);
 }
 
+function notifyNewMessage(serverNumber, requestData) {
+
+  const url = 'http://' + serversInfo[serverNumber].hostname + ':' + serversInfo[serverNumber].port + '/newMessage';
+
+  console.log("Notifiyng server number ", serverNumber);
+  console.log("New message: ", JSON.stringify(requestData));
+
+  axios.patch(url, requestData).then(response => {
+    console.log("Message sent, response: ", response.data);
+  })
+  .catch(err => {
+      console.log(err);
+      console.log("Server error trying to send message, putting it down and sending it to other servers");
+      putServerDown(serverNumber)
+      notifyAllServers("serverDown", serverNumber, serverNumber)
+  });
+}
+
 function handleNewMessage(req, res) {
     let data = '';
   
@@ -47,9 +67,15 @@ function handleNewMessage(req, res) {
       const conversation = findConversation(conversationId);
 
       if (conversation) {
-        createMessage(conversation, sender, message)
-        res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Message saved successfully!\n');
+        if (conversation.inServer === getServerNumber()) {
+          createMessage(conversation, sender, message)
+          res.writeHead(200, { 'Content-Type': 'text/plain' });
+          res.end('Message saved successfully!\n');
+        } else {
+          notifyNewMessage(conversation.inServer, requestData)
+          res.writeHead(200, { 'Content-Type': 'text/plain' });
+          res.end('Message saved successfully!\n');
+        }
       } else {
         res.writeHead(401, { 'Content-Type': 'text/plain' });
         res.end('Conversation not found.\n');
