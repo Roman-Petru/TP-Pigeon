@@ -1,4 +1,4 @@
-const { serversInfo, conversations, putServerDown, notifyAllServers, getServerNumber } = require('../serverInfo');
+const { serversInfo, conversations, putServerDown, isServerDown, notifyAllServers, getServerNumber, getReplicateServerNumber } = require('../serverInfo');
 const { findUser } = require('../users');
 const { chooseServer } = require('../utils');
 const url = require('url');
@@ -86,9 +86,22 @@ function handleNewConversation(req, res) {
 }
 
 function getConversationFromOtherServer(serverNumber, convId) {
-  const url = 'http://' + serversInfo[serverNumber].hostname + ':' + serversInfo[serverNumber].port + '/getConversation?id=' + convId;
 
-  console.log("Searching conversation from server number ", serverNumber);
+  let serverToFetch;
+
+  if (isServerDown(serverNumber)) {
+    serverToFetch = getReplicateServerNumber(serverNumber);
+    if (isServerDown(serverToFetch)) {
+      console.log("All servers that have the conversation are DOWN, convId: ", convId);
+      return;
+    }
+  } else {
+    serverToFetch = serverNumber;
+  }
+
+  const url = 'http://' + serversInfo[serverToFetch].hostname + ':' + serversInfo[serverToFetch].port + '/getConversation?id=' + convId;
+
+  console.log("Searching conversation from server number ", serverToFetch);
 
   return axios.get(url).then(response => {
     const responseBody = response.data;
@@ -98,8 +111,8 @@ function getConversationFromOtherServer(serverNumber, convId) {
   .catch(err => {
       console.log(err);
       console.log("Server error trying to get conversation, putting it down and sending it to other servers");
-      putServerDown(serverNumber)
-      notifyAllServers("serverDown", serverNumber, serverNumber)
+      putServerDown(serverToFetch)
+      notifyAllServers("serverDown", serverToFetch, serverToFetch)
   });
 }
 
@@ -114,7 +127,7 @@ function handleGetConversation(req, res) {
   const conversation = findConversation(id);
 
   if (conversation) {
-    if (conversation.inServer === getServerNumber()) {
+    if (conversation.inServer === getServerNumber() || getReplicateServerNumber(conversation.inServer) === getServerNumber()) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(conversation.messages));
     } else {

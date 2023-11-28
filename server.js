@@ -5,7 +5,7 @@ const axios = require('axios');
 const { handleAddUserRequest, handleLoginRequest } = require('./users');
 const { ServerInfo, serversInfo, users, conversations, assignServerNumber, getServerNumber, handleNotification, handleNewServer } = require('./serverInfo');
 const { handleNewConversation, handleGetConversation, handleGetAllConversations } = require('./Conversation/conversation');
-const { handleNewMessage } = require('./Conversation/message');
+const { handleNewMessage, handleReplicateMessage } = require('./Conversation/message');
 const { checkServerHealth } = require('./checkServerHealth');
 
 function startServer(config) {
@@ -45,6 +45,8 @@ function startServer(config) {
       handleNewConversation(req, res);
     } else if (req.method === 'PATCH' && req.url === '/newMessage') {
       handleNewMessage(req, res);
+    } else if (req.method === 'PATCH' && req.url === '/replicateMessage') {
+      handleReplicateMessage(req, res);
     } else if (req.method === 'GET' && req.url.startsWith('/getConversation')) {
       handleGetConversation(req, res);
     } else if (req.method === 'GET' && req.url.startsWith('/getAllConversations')) {
@@ -63,7 +65,7 @@ function startServer(config) {
     const newServer = new ServerInfo(config.hostname, config.port, 0, "UP");
     serversInfo.push(newServer);
     assignServerNumber(0);
-    console.log('Server number: ', getServerNumber());
+    console.log('Server number assigned: ', getServerNumber());
   } else {
     const url = 'http://' + config.contactPointHost + ':' + config.contactPointPort + '/newServer';
     const requestBody = {

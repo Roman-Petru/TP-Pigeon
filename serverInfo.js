@@ -23,6 +23,16 @@ function getServerNumber() {
     return serverNumber;
 }
 
+function getReplicateServerNumber(number) {
+  if (serversInfo.length <= number + 1) {
+    return 0;
+  } else return (number + 1);
+}
+
+function isServerDown(number) {
+  return serversInfo[number].status === "DOWN";
+}
+
 function putServerDown(number) {
   const serverToChange = serversInfo[number];
   serverToChange.status = "DOWN";
@@ -141,6 +151,8 @@ module.exports = {
     conversations,
     assignServerNumber,
     getServerNumber,
+    getReplicateServerNumber,
+    isServerDown,
     putServerDown,
     putServerUp,
     notifyAllServers,
