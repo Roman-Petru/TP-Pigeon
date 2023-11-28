@@ -44,10 +44,12 @@ function putServerUp(number) {
 }
 
 function getMetaInformation(){
+  const convMetaInf = conversations.map(conv => ({ ...conv, messages: [] }));
+
   const metaInfo = {
       servers_list: serversInfo,
       users_list: users,
-      conversations_list: conversations
+      conversations_list: convMetaInf
     }
   return metaInfo;
 }
@@ -94,16 +96,22 @@ function handleNewServer(req, res) {
       console.log('new hostname: ', hostname, 'new port: ', port);
 
       const searchServer = serversInfo.find((s) => s.hostname === hostname && s.port === port);
+      let needRestore;
 
       if (searchServer) {
         searchServer.status = "UP";
+        if (!isServerDown(getReplicateServerNumber(searchServer.serverNumber))) {
+          needRestore = true;
+        }
       } else {
         const newServer = new ServerInfo(hostname, port, serversInfo.length, "UP");
         serversInfo.push(newServer);
         notifyAllServers("newServer", newServer, newServer.serverNumber);
+        needRestore = false;
       }
   
-      const responseBody = getMetaInformation();
+      let responseBody = getMetaInformation();
+      responseBody.need_restore = needRestore;
   
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(responseBody));

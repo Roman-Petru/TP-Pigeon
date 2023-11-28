@@ -1,5 +1,5 @@
 const { Conversation, findConversation } = require('./conversation');
-const { serversInfo, getServerNumber, putServerDown, isServerDown, getReplicateServerNumber } = require('../serverInfo');
+const { serversInfo, getServerNumber, putServerDown, isServerDown, notifyAllServers, getReplicateServerNumber } = require('../serverInfo');
 const axios = require('axios');
 
 class Message {
@@ -7,7 +7,7 @@ class Message {
       this.id = id;
       this.sender = sender;
       this.message = message;
-      this.visibility = true;
+      this.visibility = true; //TODO change to time??
       this.time = new Date();
     }
 

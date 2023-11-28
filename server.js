@@ -3,7 +3,7 @@ const fs = require('fs');
 const inquirer = require('inquirer');
 const axios = require('axios');
 const { handleAddUserRequest, handleLoginRequest } = require('./users');
-const { ServerInfo, serversInfo, users, conversations, assignServerNumber, getServerNumber, handleNotification, handleNewServer } = require('./serverInfo');
+const { ServerInfo, serversInfo, users, conversations, assignServerNumber, getServerNumber, handleNotification, handleNewServer, getReplicateServerNumber } = require('./serverInfo');
 const { handleNewConversation, handleGetConversation, handleGetAllConversations } = require('./Conversation/conversation');
 const { handleNewMessage, handleReplicateMessage } = require('./Conversation/message');
 const { checkServerHealth } = require('./checkServerHealth');
@@ -82,12 +82,34 @@ function startServer(config) {
       const searchServer = serversInfo.find((s) => s.hostname === config.hostname && s.port === config.port);
       assignServerNumber(searchServer.serverNumber);
       console.log('Server number assigned: ', getServerNumber());
+
+      if (response.data.need_restore) {
+        
+        conversationsToRestore = conversations.filter(conv => conv.inServer == getServerNumber());
+        const serverToFetch = getReplicateServerNumber(getServerNumber());
+        console.log('Server need restoring, proceeding to fetch conversations from replica server number: ', serverToFetch);
+
+        const url = 'http://' + serversInfo[serverToFetch].hostname + ':' + serversInfo[serverToFetch].port + '/getConversation?id=';
+        conversationsToRestore.forEach(conv => {
+          const getUrl = url + conv.id;
+          axios.get(getUrl).then(response => {
+            console.log('Succesfuly got data from conversation ', conv.id);
+            console.log(response.data);
+            conv.messages.push(...response.data)
+            })
+            .catch(err => {
+              console.log('Error fetching conversation ', conv.id ,' from replica server.');
+              console.log(err);
+            });
+            })
+      }
+      
     })
     .catch(err => {
       console.log(err);
     });
   }
-  setInterval(checkServerHealth, 2000);
+  setInterval(checkServerHealth, 1000);
 }
 
 //---------LOAD CONFIG------
