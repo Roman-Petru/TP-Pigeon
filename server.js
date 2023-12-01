@@ -3,8 +3,8 @@ const fs = require('fs');
 const inquirer = require('inquirer');
 const axios = require('axios');
 const { handleAddUserRequest, handleLoginRequest } = require('./users');
-const { ServerInfo, serversInfo, users, conversations, assignServerNumber, getServerNumber, handleNotification, handleNewServer, getReplicateServerNumber } = require('./serverInfo');
-const { handleNewConversation, handleGetConversation, handleGetAllConversations } = require('./Conversation/conversation');
+const { ServerInfo, serversInfo, users, conversations, getMetaInformation, assignServerNumber, getServerNumber, handleNotification, handleNewServer, getReplicateServerNumber } = require('./serverInfo');
+const { handleNewConversation, handleGetConversation, handleGetAllConversations, handleAddAdmin, handleAddUserToConversation, handleDeleteUserFromConversation } = require('./Conversation/conversation');
 const { handleNewMessage, handleReplicateMessage } = require('./Conversation/message');
 const { checkServerHealth } = require('./checkServerHealth');
 
@@ -31,8 +31,9 @@ function startServer(config) {
       res.writeHead(200, { 'Content-Type': 'text/plain' });
       res.end('OK!\n');
     } else if (req.method === 'GET' && req.url === '/getServerInfo') {
+      const metaInfo = getMetaInformation();
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(serversInfo));
+      res.end(JSON.stringify(metaInfo));
     } else if (req.method === 'POST' && req.url === '/login') {
       handleLoginRequest(req, res);
     } else if (req.method === 'POST' && req.url === '/addUser') {
@@ -47,6 +48,12 @@ function startServer(config) {
       handleNewMessage(req, res);
     } else if (req.method === 'PATCH' && req.url === '/replicateMessage') {
       handleReplicateMessage(req, res);
+    } else if (req.method === 'PATCH' && req.url === '/addAdmin') {
+      handleAddAdmin(req, res);
+    } else if (req.method === 'PATCH' && req.url === '/addUserToConv') {
+      handleAddUserToConversation(req, res);
+    } else if (req.method === 'PATCH' && req.url === '/deleteUserFromConv') {
+      handleDeleteUserFromConversation(req, res);
     } else if (req.method === 'GET' && req.url.startsWith('/getConversation')) {
       handleGetConversation(req, res);
     } else if (req.method === 'GET' && req.url.startsWith('/getAllConversations')) {

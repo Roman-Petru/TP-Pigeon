@@ -6,20 +6,26 @@ const querystring = require('querystring');
 const axios = require('axios');
 
 class Conversation {
-    constructor(id, admin, inServer) {
+    constructor(id, inServer) {
       this.id = id;
-      this.admin = admin;
+      this.admins = [];
       this.users = [];
       this.messages = [];
       this.inServer = inServer;
-
-      //console.log(`${this.admin.username} created conversation with id: ${this.id}.`);
     }
 
     addUser(user) {
         this.users.push(user);
-        //console.log(`${user.username} added to conversation with id: ${this.id}.`);
       }
+
+    deleteUser(username) {
+      this.users = this.users.filter(user => user.username !== username)
+      this.admins = this.admins.filter(admin => admin.username !== username)
+    }
+
+    addAdmin(user) {
+      this.admins.push(user);
+    }
 }
 
 class ConversationDTO {
@@ -47,7 +53,8 @@ function generateUniqueId() {
 function createConversation(fromUser, toUser) {
     const newId = generateUniqueId();
     const choosenServer = chooseServer(serversInfo);
-    const newConv = new Conversation(newId, fromUser, choosenServer);
+    const newConv = new Conversation(newId, choosenServer);
+    newConv.addAdmin(fromUser);
     newConv.addUser(fromUser);
     newConv.addUser(toUser);
     conversations.push(newConv);
@@ -168,10 +175,106 @@ function handleGetAllConversations(req, res) {
   }
 }
 
+function handleAddAdmin(req, res) {
+  let data = '';
+
+  req.on('data', (chunk) => {
+    data += chunk;
+  });
+
+  req.on('end', () => {
+    const requestData = JSON.parse(data);
+    const { convId, userAddingAdmin, newAdminUsername } = requestData;
+
+    const conversation = findConversation(convId);
+
+    if(conversation && 
+      conversation.admins.some(admin => admin.username === userAddingAdmin) && 
+      conversation.users.some(users => users.username === newAdminUsername)) {
+
+      conversation.users.push(findUser(newAdminUsername));
+
+      notifyAllServers("newAdmin", requestData, -1)
+  
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.end('New admin added!\n');
+    } else {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Invalid conversation or invalid users.\n');
+    }
+  
+  });
+}
+
+function handleAddUserToConversation(req, res) {
+  let data = '';
+
+  req.on('data', (chunk) => {
+    data += chunk;
+  });
+
+  req.on('end', () => {
+    const requestData = JSON.parse(data);
+    const { convId, adminAddingUser, newUserUsername } = requestData;
+
+    const conversation = findConversation(convId);
+
+    if(conversation && 
+      conversation.admins.some(admin => admin.username === adminAddingUser)) {
+
+      conversation.users.push(findUser(newUserUsername));
+
+      notifyAllServers("newUserInConv", requestData, -1)
+  
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.end('User added to conversation!\n');
+    } else {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Invalid conversation or invalid users.\n');
+    }
+  
+  });
+}
+
+function handleDeleteUserFromConversation(req, res) {
+  let data = '';
+
+  req.on('data', (chunk) => {
+    data += chunk;
+  });
+
+  req.on('end', () => {
+    const requestData = JSON.parse(data);
+    const { convId, adminDeletingUser, deletedUserUsername } = requestData;
+
+    const conversation = findConversation(convId);
+
+    if(conversation && 
+      conversation.admins.some(admin => admin.username === adminDeletingUser) &&
+      conversation.users.some(users => users.username === deletedUserUsername)) {
+
+      conversation.users = conversation.users.filter(user => user.username !== deletedUserUsername)
+      conversation.admins = conversation.admins.filter(admin => admin.username !== deletedUserUsername)
+
+      notifyAllServers("deleteUserInConv", requestData, -1)
+  
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.end('Deleted user on conversation!\n');
+    } else {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Invalid conversation or invalid users.\n');
+    }
+  
+  });
+}
+
 module.exports = {
   conversations,
   findConversation,
   handleNewConversation,
   handleGetConversation,
-  handleGetAllConversations
+  handleGetAllConversations,
+  handleAddAdmin,
+  handleAddUserToConversation,
+  handleDeleteUserFromConversation,
 };

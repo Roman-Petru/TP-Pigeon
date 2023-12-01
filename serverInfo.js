@@ -137,6 +137,33 @@ function handleNewServer(req, res) {
         serversInfo.push(content);
       } else if (type === "newConversation") {
         conversations.push(content);
+      } else if (type === "newAdmin") {
+
+        const requestData = JSON.parse(data);
+        const { convId, userAddingAdmin, newAdminUsername } = requestData.content;
+        const conversation = conversations.find((c) => c.id === convId);
+        const user = users.find((u) => u.username === newAdminUsername);
+
+        conversation.admins.push(user);
+
+      } else if (type === "newUserInConv") {
+
+        const requestData = JSON.parse(data);
+        const { convId, adminAddingUser, newUserUsername } = requestData.content;
+        const conversation = conversations.find((c) => c.id === convId);
+        const user = users.find((u) => u.username === newUserUsername);
+
+        conversation.users.push(user);
+
+      } else if (type === "deleteUserInConv") {
+
+        const requestData = JSON.parse(data);
+        const { convId, adminDeletingUser, deletedUserUsername } = requestData.content;
+        const conversation = conversations.find((c) => c.id === convId);
+
+        conversation.users = conversation.users.filter(user => user.username !== deletedUserUsername)
+        conversation.admins = conversation.admins.filter(admin => admin.username !== deletedUserUsername)
+
       } else if (type === "serverDown") {
         putServerDown(content)
       } else {
@@ -157,6 +184,7 @@ module.exports = {
     serversInfo,
     users,
     conversations,
+    getMetaInformation,
     assignServerNumber,
     getServerNumber,
     getReplicateServerNumber,
