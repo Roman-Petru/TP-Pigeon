@@ -1,6 +1,6 @@
 const { serversInfo, conversations, putServerDown, isServerDown, notifyAllServers, getServerNumber, getReplicateServerNumber } = require('../serverInfo');
 const { findUser } = require('../users');
-const { chooseServer } = require('../utils');
+const { chooseServer, unixTimestamp } = require('../utils');
 const url = require('url');
 const querystring = require('querystring');
 const axios = require('axios');
@@ -12,19 +12,28 @@ class Conversation {
       this.users = [];
       this.messages = [];
       this.inServer = inServer;
+      this.last_modified = unixTimestamp()
     }
 
     addUser(user) {
         this.users.push(user);
+        last_modified = unixTimestamp();
       }
 
     deleteUser(username) {
       this.users = this.users.filter(user => user.username !== username)
       this.admins = this.admins.filter(admin => admin.username !== username)
+      last_modified = unixTimestamp();
     }
 
     addAdmin(user) {
       this.admins.push(user);
+      last_modified = unixTimestamp();
+    }
+
+    addMessage(message){
+      messages.push(message);
+      last_modified = unixTimestamp();
     }
 }
 
