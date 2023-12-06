@@ -35,7 +35,7 @@ function handleCutConnection(req,res){
 function startServer(config) {
   const server = http.createServer((req, res) => {
 
-    if (req.url !== '/heartbeat') {
+    if (req.url !== '/heartbeat' && req.url !== '/getServerInfo') {
       console.log('New request to: ', req.url);
     }
   
