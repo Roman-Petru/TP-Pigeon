@@ -28,7 +28,7 @@ function checkServerHealth() {
 function mergeStateFromPartitionedServer(server){
     const urlServerInfo = 'http://' + server.hostname + ':' + server.port + '/getServerInfo';
     const serverNumber = getServerNumber();
-    const isReplicateServer = getReplicateServerNumber() === server.serverNumber;
+    const isReplicateServer = getReplicateServerNumber(serverNumber) === server.serverNumber;
     
     //Busco la metainfo (usuarios y conversaciones)
     axios.get(urlServerInfo).then((res) => {
@@ -36,13 +36,13 @@ function mergeStateFromPartitionedServer(server){
 
             //filtro nuevos usuarios
             const newUsers = data.users_list.filter(user => !users.some(_user => _user.username === user.username));
-            users.concat(newUsers);
+            users.push(newUsers);
             
             //filtro nuevas convers
             const newConvers = data.conversations_list.filter(
                 conver => !conversations.some(_conver => _conver.id === conver.id)
             );
-            conversations.concat(newConvers)
+            conversations.push(newConvers)
             
             //si no es la replica, termino
             if(!isReplicateServer)
@@ -67,7 +67,7 @@ function mergeStateFromPartitionedServer(server){
                     const newMessages = res.data.filter(message => 
                         !conver.messages.some(_message => _message.id === message.id)
                     );
-                    conver.messages.concat(newMessages);
+                    conver.messages.push(newMessages);
                 })
                 .catch(err => {
                     console.log("Server number ", server.serverNumber, " throwed error while fetching conver ", conver.id);

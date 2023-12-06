@@ -7,6 +7,30 @@ const { ServerInfo, serversInfo, users, conversations, getMetaInformation, assig
 const { handleNewConversation, handleGetConversation, handleGetAllConversations, handleAddAdmin, handleAddUserToConversation, handleDeleteUserFromConversation } = require('./Conversation/conversation');
 const { handleNewMessage, handleReplicateMessage } = require('./Conversation/message');
 const { checkServerHealth } = require('./checkServerHealth');
+const { WebSocketServer, WebSocket } = require('ws')
+const url = require('url');
+const querystring = require('querystring');
+
+const serversConnections = [];
+
+class ServerConnection{
+  constructor(serverInfo, ws){
+    this.serverInfo = serverInfo;
+    this.ws = ws;
+  }
+}
+
+function handleCutConnection(req,res){
+  const parsedUrl = url.parse(req.url);
+  const queryParams = querystring.parse(parsedUrl.query);
+
+  const serverNumber = queryParams.serverNumber;
+  console.log(serversConnections);
+  const serverConnection = serversConnections.find(sc => sc.serverInfo.serverNumber == serverNumber);
+  serverConnection.ws.close();
+  res.writeHead(200);
+  res.end();  
+}
 
 function startServer(config) {
   const server = http.createServer((req, res) => {
@@ -58,7 +82,10 @@ function startServer(config) {
       handleGetConversation(req, res);
     } else if (req.method === 'GET' && req.url.startsWith('/getAllConversations')) {
       handleGetAllConversations(req, res);
-    } else {
+    } else if (req.method === 'POST' && req.url.startsWith('/cutConnection')){
+      handleCutConnection(req,res);
+    }
+    else {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Not Found\n');
     }
@@ -68,12 +95,64 @@ function startServer(config) {
     console.log(`Server is running at http://${config.hostname}:${config.port}/`);
   });
   
+  const wsServer = new WebSocketServer({
+    server: server,
+    autoAcceptConnections: false
+  });
+
+  wsServer.on('connection', function connection(ws) {
+
+    ws.on('message', function message(data){
+      const {hostname, port} = JSON.parse(data); 
+
+      const serverInfo = serversInfo.find((s) => s.hostname === hostname && s.port === port);
+      const serverConnection = serversConnections.find(sc => sc.serverInfo === serverInfo);
+      console.log("SERVER UP", serverConnection?.serverInfo ?? serverInfo);
+      serverInfo.status = "UP";
+      if(serverConnection)
+      {
+        serverConnection.ws = ws;
+      }
+      else{
+        serversConnections.push(new ServerConnection(serverInfo, ws));
+      }
+      
+    });
+    
+    ws.on('error', function error(data) {
+      //PUT SERVER DOWN
+      const serverConnection = serversConnections.find(sc => sc.ws === ws);
+      console.log("[ERROR] SERVER DOWN", serverConnection?.serverInfo);
+      if(serverConnection)
+      {
+        serverConnection.serverInfo.status = "DOWN";
+      }
+      
+      
+    });
+
+    ws.on('close', function close(data) {
+      //PUT SERVER DOWN
+      const serverConnection = serversConnections.find(sc => sc.ws === ws);
+      console.log("[CLOSE] SERVER DOWN", serverConnection?.serverInfo);
+      if(serverConnection)
+      {
+        serverConnection.serverInfo.status = "DOWN";
+      }
+    });
+
+  });
+
+
+  
+
   if (config.firstServer === true) {
     const newServer = new ServerInfo(config.hostname, config.port, 0, "UP");
     serversInfo.push(newServer);
     assignServerNumber(0);
     console.log('Server number assigned: ', getServerNumber());
   } else {
+    
     const url = 'http://' + config.contactPointHost + ':' + config.contactPointPort + '/newServer';
     const requestBody = {
       hostname: config.hostname,
@@ -110,13 +189,45 @@ function startServer(config) {
             });
             })
       }
-      
+      console.log(serversInfo);
+      serversInfo
+      .filter(server => server.serverNumber !== getServerNumber())
+      .forEach(serverInfo => {
+        const socket = new WebSocket(`ws://${serverInfo.hostname}:${serverInfo.port}`);
+        
+        socket.on('open', function open(data){
+          console.log("SERVER UP", serverInfo);
+          serverInfo.status = "UP";
+          socket.send(JSON.stringify(requestBody));
+        })
+
+        socket.on('error', function error(error) {
+          console.log(error);
+          const serverConnection = serversConnections.find(sc => sc.ws === socket);
+          console.log("SERVER DOWN", serverConnection?.serverInfo);
+          serverConnection.serverInfo.status = "DOWN";
+        });
+
+        socket.on('close', function close() {
+          const serverConnection = serversConnections.find(sc => sc.ws === socket);
+          console.log("SERVER DOWN", serverConnection?.serverInfo);
+          serverConnection.serverInfo.status = "DOWN";
+        });
+
+        const serverConnection = serversConnections.find(sc => sc.serverInfo === serverInfo); 
+        if(serverConnection)
+        {
+          serverConnection.ws = socket;
+        }
+        else{
+          serversConnections.push(new ServerConnection(serverInfo, socket));
+        }
+      });
     })
     .catch(err => {
       console.log(err);
     });
   }
-  setInterval(checkServerHealth, 1000);
 }
 
 //---------LOAD CONFIG------

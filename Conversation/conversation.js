@@ -285,5 +285,5 @@ module.exports = {
   handleGetAllConversations,
   handleAddAdmin,
   handleAddUserToConversation,
-  handleDeleteUserFromConversation,
+  handleDeleteUserFromConversation
 };
