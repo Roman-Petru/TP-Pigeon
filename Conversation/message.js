@@ -31,7 +31,7 @@ function createMessage(conversation, sender, message) {
     }
 
     const newMessage = new Message(messageId, sender, message);
-    conversation.messages.push(newMessage);
+    conversation.addMessage(message);
     console.log(`Message "${newMessage.message}" with id ${messageId} added to the conversation ${conversation.id} at ${newMessage.time}.`);
     return newMessage;
 }
@@ -137,7 +137,7 @@ function handleReplicateMessage(req, res) {
 
     if (conversation) {
 
-      conversation.messages.push(message);
+      conversation.addMessage(message);
       console.log(`For replication: Message "${message.message}" with id ${message.id} added to the conversation ${conversation.id} at ${message.time}.`);
 
     } else {

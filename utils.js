@@ -18,7 +18,12 @@ function chooseServer(serversInfo) {
     return Math.abs(hash);
   };
 
+  function unixTimestamp (date = Date.now()) {  
+    return Math.floor(date / 1000)
+  }
+
   module.exports = {
     chooseServer,
-    hashCode
+    hashCode,
+    unixTimestamp
   };
