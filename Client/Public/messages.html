@@ -44,6 +44,8 @@
 
     <div id="conversationDetails">
         <h2>Conversation Details</h2>
+        <div id="userGroupList">
+        </div>
         <div id="conversationContent">
         </div>
 
@@ -52,11 +54,70 @@
             <input type="text" id="message" name="message" required>
             <button type="button" onclick="sendMessage()">Send</button>
         </form>
+        <form id="addToGroupForm">
+            <label for="message">Add user to group:</label>
+            <input type="text" id="addToGroup" name="addToGroup" required>
+            <button type="button" onclick="sendAddToGroup()">Add</button>
+        </form>
+        <form id="deleteFromGroupForm">
+            <label for="message">Delete user from group:</label>
+            <input type="text" id="deleteFromGroup" name="deleteFromGroup" required>
+            <button type="button" onclick="sendDeleteFromGroup()">Delete</button>
+        </form>
+        <form id="addAdminToGroup">
+            <label for="message">Add admin to group:</label>
+            <input type="text" id="addAdminToGroup" name="addAdminToGroup" required>
+            <button type="button" onclick="sendAddAdminToGroup()">Add</button>
+        </form>
     </div>
 
     <script>
         const username = sessionStorage.getItem('username');
         let currentConversationId = '';
+        let usersInConversation = '';
+        let serversInfo = [];
+
+        function getUrlDomain(){
+            const serversUp = serversInfo.filter(sv => sv.status === "UP");
+            if (serversUp.length > 0) {
+                const url = 'http://' + serversUp[0].hostname + ':' + serversUp[0].port;
+                return url;
+            }
+            throw "All servers are down";
+        }
+
+        function getServersInfo(){
+            fetch('serverConfig.txt')
+                .then(response => response.text())
+                .then(data => {
+                const configLines = data.trim().split('\n');
+                const config = {};
+
+                configLines.forEach(line => {
+                    const [key, value] = line.split('=');
+                    config[key.trim()] = value.trim();
+                });
+
+                const serverUrl = 'http://' + config.contactPointHost + ':' + config.contactPointPort;
+                console.log(serverUrl);
+                fetch(serverUrl + '/getServerInfo', {
+                method: 'GET',
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log(data);
+                        serversInfo.push(...data.servers_list);
+                    })
+                    .then(() => {loadConversations();})
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Failing getting server info.');
+                    });
+            })
+            .catch(error => {
+                console.error('Error reading file:', error);
+                });
+        }
 
         function sendMessage() {
             const messageInput = document.getElementById('message');
@@ -71,7 +132,7 @@
 
             console.log('Sending message: ', messageData);
 
-            fetch('http://127.0.0.1:3000/newMessage', {
+            fetch(getUrlDomain() + '/newMessage', {
                 method: 'PATCH',
                 headers: {
                 'Content-Type': 'application/json'
@@ -92,11 +153,117 @@
             });
         }
 
+        function sendAddToGroup() {
+            const userToAdd = document.getElementById('addToGroup');
+            const username = userToAdd.value;
+            const conversationId = currentConversationId;
+
+            const requestData = {
+                convId: conversationId,
+                adminAddingUser: sessionStorage.getItem('username'),
+                newUserUsername: username
+            };
+
+            console.log('Adding user to group: ', requestData);
+
+            fetch(getUrlDomain() + '/addUserToConv', {
+                method: 'PATCH',
+                headers: {
+                'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => {
+                if (response.ok) {
+                console.log('User added successfully!');
+                userToAdd.value = '';
+                loadConversation(conversationId);
+                } else {
+                alert("User couldn't be added");
+                console.error('Failed to add user.');
+                }
+            })
+            .catch(error => {
+                console.error('Error adding user:', error);
+            });
+        }
+
+        function sendDeleteFromGroup() {
+            const userToDelete = document.getElementById('deleteFromGroup');
+            const username = userToDelete.value;
+            const conversationId = currentConversationId;
+
+            const requestData = {
+                convId: conversationId,
+                adminDeletingUser: sessionStorage.getItem('username'),
+                deletedUserUsername: username
+            };
+
+            console.log('Deleting user from group: ', requestData);
+
+            fetch(getUrlDomain() + '/deleteUserFromConv', {
+                method: 'PATCH',
+                headers: {
+                'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => {
+                if (response.ok) {
+                console.log('User deleted successfully!');
+                userToDelete.value = '';
+                loadConversation(conversationId);
+                } else {
+                alert("User couldn't be deleted");
+                console.error('Failed to delete user.');
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting user:', error);
+            });
+        }
+
+        function sendAddAdminToGroup() {
+            const userToAdd = document.getElementById('addAdminToGroup');
+            const username = userToAdd.value;
+            const conversationId = currentConversationId;
+
+            const requestData = {
+                convId: conversationId,
+                userAddingAdmin: sessionStorage.getItem('username'),
+                newAdminUsername: username
+            };
+
+            console.log('Adding admin to group: ', requestData);
+
+            fetch(getUrlDomain() + '/addAdmin', {
+                method: 'PATCH',
+                headers: {
+                'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => {
+                if (response.ok) {
+                console.log('Admin added successfully!');
+                userToAdd.value = '';
+                loadConversation(conversationId);
+                } else {
+                alert("User couldn't be added to admin");
+                console.error('Failed to make user group aadmin.');
+                }
+            })
+            .catch(error => {
+                console.error('Error adding user as admin: ', error);
+            });
+        }
+
+
         function loadConversations() {
             const conversationLinks = document.getElementById('conversationLinks');
             conversationLinks.innerHTML = '';
 
-            const serverUrl = 'http://' + 'localhost' + ':' + 3000 + '/getAllConversations?username=' + sessionStorage.getItem('username');
+            const serverUrl = getUrlDomain() + '/getAllConversations?username=' + sessionStorage.getItem('username');
             console.log(`Sending request to: ${serverUrl}`);
 
             fetch(serverUrl)
@@ -106,8 +273,9 @@
                         const listItem = document.createElement('li');
                         const link = document.createElement('a');
                         link.href = '#';
-                        link.onclick = () => loadConversation(conversation.id);
                         const users = conversation.users.join(', ');
+                        usersInConversation = users;
+                        link.onclick = () => loadConversation(conversation.id);
                         link.textContent = users;
                         listItem.appendChild(link);
                         conversationLinks.appendChild(listItem);
@@ -123,7 +291,15 @@
             conversationContent.innerHTML = 'Loading conversation...';
             currentConversationId = conversationId;
 
-            const serverUrl = 'http://' + 'localhost' + ':' + 3000 + '/getConversation?id=' + conversationId;
+            const userGroupListContent = document.getElementById('userGroupList');
+            userGroupListContent.innerHTML = '';
+            const listUsers = document.createElement('li');
+            const usersText = document.createTextNode('Users in chat: ' + usersInConversation);
+
+            listUsers.appendChild(usersText);
+            userGroupListContent.appendChild(listUsers);
+
+            const serverUrl = getUrlDomain() +  '/getConversation?id=' + conversationId;
             console.log(`Sending request to: ${serverUrl}`);
 
             fetch(serverUrl)
@@ -165,7 +341,7 @@
 
             console.log('Starting new conversation: ', convData);
 
-            fetch('http://127.0.0.1:3000/newConversation', {
+            fetch(getUrlDomain() + '/newConversation', {
                 method: 'POST',
                 headers: {
                 'Content-Type': 'application/json'
@@ -187,7 +363,7 @@
             });
         }
 
-        window.onload = loadConversations;
+        window.onload = getServersInfo;
     </script>
 </body>
 </html>
