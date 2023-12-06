@@ -52,6 +52,8 @@
         <form id="messageForm">
             <label for="message">Enter your message:</label>
             <input type="text" id="message" name="message" required>
+            <label for="integerInput">Enter seconds of visibility:</label>
+            <input type="number" id="secondsOfVisibility" name="secondsOfVisibility" step="1">
             <button type="button" onclick="sendMessage()">Send</button>
         </form>
         <form id="addToGroupForm">
@@ -139,10 +141,14 @@
             const message = messageInput.value;
             const conversationId = currentConversationId;
 
+            const secondsInput = document.getElementById('secondsOfVisibility');
+            const seconds = parseInt(secondsInput.value);
+
             const messageData = {
                 conversationId: conversationId,
                 sender: sessionStorage.getItem('username'),
-                message: message
+                message: message,
+                secondsForVisibility: seconds
             };
 
             console.log('Sending message: ', messageData);
