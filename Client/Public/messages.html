@@ -77,6 +77,7 @@
         const username = sessionStorage.getItem('username');
         let currentConversationId = '';
         let usersInConversation = '';
+        let isAdminOfCurrent = false;
         let serversInfo = [];
 
         function getUrlDomain(){
@@ -279,6 +280,37 @@
             });
         }
 
+        function deleteMessage(messageId) {
+            console.log('Deleting message: ', messageId);
+
+            const requestData = {
+                conversationId: currentConversationId,
+                messageId: messageId
+            };
+
+            const serverUrl = getUrlDomain() + '/deleteMessage';
+            console.log(`Sending request to: ${serverUrl}`);
+
+            fetch(serverUrl, {
+                method: 'POST',
+                headers: {
+                'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => {
+                if (response.ok) {
+                console.log('Message deleted successfully!');
+                loadConversation(currentConversationId);
+                } else {
+                console.error('Failed to delete message.');
+                }
+            })
+            .catch(error => {
+                console.error('Error sending message:', error);
+            });
+        }
+
 
         function loadConversations() {
             const conversationLinks = document.getElementById('conversationLinks');
@@ -295,8 +327,12 @@
                         const link = document.createElement('a');
                         link.href = '#';
                         const users = conversation.users.join(', ');
-                        usersInConversation = users;
-                        link.onclick = () => loadConversation(conversation.id);
+
+                        link.onclick = () => {
+                            isAdminOfCurrent = conversation.isAdmin;
+                            usersInConversation = users;
+                            loadConversation(conversation.id);}
+
                         link.textContent = users;
                         listItem.appendChild(link);
                         conversationLinks.appendChild(listItem);
@@ -341,6 +377,15 @@
                     messageTextElement.style.fontSize = '1.2em';
                     messageTextElement.style.marginTop = '5px';
                     messageTextElement.style.marginBottom = '7px';
+
+                    if (isAdminOfCurrent || message.sender == sessionStorage.getItem('username')) {
+                        const deleteButton = document.createElement('button');
+                        deleteButton.textContent = 'Delete';
+                        deleteButton.onclick = () => {
+                            deleteMessage(message.id)
+                        };
+                        messageElement.appendChild(deleteButton);
+                    }
 
                     conversationContent.appendChild(messageElement);
                    });

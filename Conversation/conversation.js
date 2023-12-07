@@ -38,9 +38,10 @@ class Conversation {
 }
 
 class ConversationDTO {
-  constructor(id, users) {
+  constructor(id, users, isAdmin) {
     this.id = id;
     this.users = users;
+    this.isAdmin = isAdmin;
   }
 }
 
@@ -144,7 +145,7 @@ function handleGetConversation(req, res) {
 
   if (conversation) {
     if (conversation.inServer === getServerNumber() || getReplicateServerNumber(conversation.inServer) === getServerNumber()) {
-      const visibleMessages = conversation.messages.filter(msg => msg.visibility > new Date());
+      const visibleMessages = conversation.messages.filter(msg => parseInt(msg.visibility) > unixTimestamp());
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(visibleMessages));
     } else {
@@ -175,7 +176,9 @@ function handleGetAllConversations(req, res) {
 
   if (conversationsOfUser) {
 
-    const conversationsDTO = conversationsOfUser.map(conv => new ConversationDTO(conv.id, conv.users.filter(user => user.username != username).map(user => user.username)));
+    const conversationsDTO = conversationsOfUser.map(
+      conv => new ConversationDTO(conv.id, conv.users.filter(user => user.username != username).map(user => user.username), 
+      conv.admins.some(admin => admin.username === username)));
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(conversationsDTO));
 
