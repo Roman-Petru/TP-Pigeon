@@ -40,6 +40,8 @@
             <input type="text" id="userId" name="userId" placeholder="Write username here" required>
             <button type="button" onclick="startNewConversation()">Start</button>
         </form>
+        <ul id="conversationLinks">
+        </ul>
     </div>
 
     <div id="conversationDetails">
@@ -79,6 +81,10 @@
         let usersInConversation = '';
         let isAdminOfCurrent = false;
         let serversInfo = [];
+        let usersInEachConversationId = {};
+        let listOfNotifications = [];
+        let pendingNotifications = [];
+        let notifTextDictionary = {};
 
         function getUrlDomain(){
             const serversUp = serversInfo.filter(sv => sv.status === "UP");
@@ -91,6 +97,7 @@
 
         function pollServer(){
 
+
             fetch(getUrlDomain() + '/getServerInfo', {
                 method: 'GET',
                     })
@@ -102,6 +109,53 @@
                         let serversUp = serversInfo.filter(sv => sv.status === "UP");
                         serversUp[0].status = "DOWN";
                     });
+
+            const urlForNotis = getUrlDomain() + '/getUserNotifications?username=' + sessionStorage.getItem('username');
+            
+            fetch(urlForNotis, {
+                method: 'GET',
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        data.push(...pendingNotifications);
+                        let newNotis = data.map(convId => getUsersOfChatFromId(convId)); //ONLY TO THROW ERROR;
+                        listOfNotifications.push(...data);
+                        listOfNotifications = listOfNotifications.reduce(function(a,b){if(a.indexOf(b)<0)a.push(b);return a;},[]);
+                        showNotifications();
+                        pendingNotifications = [];
+                    })
+                    .catch(error => {
+                        if (error instanceof ReferenceError) {
+                            console.error('Caught a ReferenceError, loading conversations');
+                            loadConversations();
+                        } else {
+                            console.error('Error getting notifications:', error);
+                        }
+                    });
+
+        }
+
+        function getUsersOfChatFromId(conversationId) {
+            if (usersInEachConversationId.hasOwnProperty(conversationId)) {
+                return usersInEachConversationId[conversationId];
+            } else {
+                pendingNotifications.push(conversationId);
+                throw new ReferenceError;
+            }
+        }
+
+        function showNotifications() {
+            listOfNotifications.forEach(convId => {
+                if (notifTextDictionary.hasOwnProperty(convId)) {
+                    const notifText = notifTextDictionary[convId];
+                    if (notifText) {
+                        notifText.style.visibility = 'visible';
+                    }
+                } else {
+                    console.log('Not found on the Dictionary: ', convId);
+                }
+
+            })
         }
 
         function getServersInfo(){
@@ -327,14 +381,33 @@
                         const link = document.createElement('a');
                         link.href = '#';
                         const users = conversation.users.join(', ');
+                        usersInEachConversationId[conversation.id] = users;
 
                         link.onclick = () => {
                             isAdminOfCurrent = conversation.isAdmin;
                             usersInConversation = users;
+                            const notifText = notifTextDictionary[conversation.id];
+                            if (notifText) {
+                                notifText.style.visibility = 'hidden';
+                            }
+                            listOfNotifications = listOfNotifications.filter(convId => convId !== conversation.id);
                             loadConversation(conversation.id);}
 
                         link.textContent = users;
                         listItem.appendChild(link);
+                        
+                        //if (listOfNotifications.includes(conversation.id)) {                        
+                            const newText = document.createElement('span');
+                            newText.textContent = 'NEW MESSAGE!';
+                            newText.style.fontWeight = 'bold';
+                            newText.style.marginLeft = '8px';
+
+                            //listItem.appendChild(newText);
+                            notifTextDictionary[conversation.id] = newText;
+                            listItem.appendChild(newText);
+                            newText.style.visibility = 'hidden';
+                        //}
+
                         conversationLinks.appendChild(listItem);
                         });
                     })

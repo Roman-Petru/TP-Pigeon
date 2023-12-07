@@ -5,12 +5,8 @@ class User {
     constructor(username, password) {
       this.username = username;
       this.password = password;
+      this.pendingNotifications = [];
     }
-
-    changePassword(newPassword) {
-        this.password = hashCode(newPassword);
-        console.log(`${this.username}'s password has been updated.`);
-      }
 }
 
 function createUser(username, password) {

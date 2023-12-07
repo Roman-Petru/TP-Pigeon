@@ -2,6 +2,7 @@ const { Conversation, findConversation } = require('./conversation');
 const { serversInfo, getServerNumber, putServerDown, isServerDown, notifyAllServers, getReplicateServerNumber } = require('../serverInfo');
 const axios = require('axios');
 const { generateGUID, unixTimestamp } = require('../utils');
+const { addUserNotification } = require('../notifications');
 
 class Message {
     constructor(id, sender, message, secondsForVisibility) {
@@ -25,7 +26,15 @@ function createMessage(conversation, sender, message, secondsForVisibility) {
     conversation.last_modified = unixTimestamp();
     console.log(`Message "${newMessage.message}" with id ${messageId} added to the conversation ${conversation.id} at ${newMessage.time}.`);
     console.log(conversation);
+    sendNotification(conversation, sender);
     return newMessage;
+}
+
+function sendNotification(conversation, sender) {
+  const usersToSend = conversation.users.filter(user => user.username !== sender);
+  usersToSend.forEach(user => {
+    addUserNotification(user, conversation.id);
+  });
 }
 
 function notifyNewMessage(serverNumber, requestData) {

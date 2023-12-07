@@ -170,6 +170,22 @@ function handleNewServer(req, res) {
         conversation.admins = conversation.admins.filter(admin => admin.username !== deletedUserUsername)
         conversation.last_modified = unixTimestamp();
 
+      } else if (type === "addNotification") {
+
+        const requestData = JSON.parse(data);
+        const { username, convId } = requestData.content;
+
+        const userToAdd = users.find((u) => u.username === username);
+        userToAdd.pendingNotifications.push(convId);
+
+      } else if (type === "emptyNotifications") {
+
+        const requestData = JSON.parse(data);
+        const { username } = requestData.content;
+
+        const user = users.find((u) => u.username === username);
+        user.pendingNotifications = [];
+
       } else if (type === "serverDown") {
         putServerDown(content)
       } else {

@@ -6,7 +6,8 @@ const { handleAddUserRequest, handleLoginRequest } = require('./users');
 const { ServerInfo, serversInfo, users, conversations, getMetaInformation, assignServerNumber, getServerNumber, handleNotification, handleNewServer, getReplicateServerNumber } = require('./serverInfo');
 const { handleNewConversation, handleGetConversation, handleGetAllConversations, handleAddAdmin, handleAddUserToConversation, handleDeleteUserFromConversation } = require('./Conversation/conversation');
 const { handleNewMessage, handleReplicateMessage, handleDeleteMessage, handleReplicateDeleteMessage } = require('./Conversation/message');
-const { checkServerHealth, mergeStateFromPartitionedServer } = require('./checkServerHealth');
+const { mergeStateFromPartitionedServer } = require('./checkServerHealth');  
+const { handleGetUserNotifications } = require('./notifications');
 const { WebSocketServer, WebSocket } = require('ws')
 const url = require('url');
 const querystring = require('querystring');
@@ -53,7 +54,7 @@ function handleReconnect(req, res){
 function startServer(config) {
   const server = http.createServer((req, res) => {
 
-    if (req.url !== '/heartbeat' && req.url !== '/getServerInfo') {
+    if (req.url !== '/heartbeat' && req.url !== '/getServerInfo' && !req.url.startsWith('/getUserNotifications')) {
       console.log('New request to: ', req.url);
     }
   
@@ -108,7 +109,9 @@ function startServer(config) {
       handleCutConnection(req,res);
     } else if (req.method === 'POST' && req.url.startsWith('/reconnect')){
       handleReconnect(req,res);
-    }
+    } else if (req.method === 'GET' && req.url.startsWith('/getUserNotifications')) {
+      handleGetUserNotifications(req, res);
+    } 
     else {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Not Found\n');
