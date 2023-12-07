@@ -6,12 +6,14 @@ const { handleAddUserRequest, handleLoginRequest } = require('./users');
 const { ServerInfo, serversInfo, users, conversations, getMetaInformation, assignServerNumber, getServerNumber, handleNotification, handleNewServer, getReplicateServerNumber } = require('./serverInfo');
 const { handleNewConversation, handleGetConversation, handleGetAllConversations, handleAddAdmin, handleAddUserToConversation, handleDeleteUserFromConversation } = require('./Conversation/conversation');
 const { handleNewMessage, handleReplicateMessage, handleDeleteMessage, handleReplicateDeleteMessage } = require('./Conversation/message');
-const { checkServerHealth } = require('./checkServerHealth');
+const { checkServerHealth, mergeStateFromPartitionedServer } = require('./checkServerHealth');
 const { WebSocketServer, WebSocket } = require('ws')
 const url = require('url');
 const querystring = require('querystring');
 
+var globalConfig = {};
 const serversConnections = [];
+const autoReconnectWebSocket = false;
 
 class ServerConnection{
   constructor(serverInfo, ws){
@@ -30,6 +32,22 @@ function handleCutConnection(req,res){
   serverConnection.ws.close();
   res.writeHead(200);
   res.end();  
+}
+
+function handleReconnect(req, res){
+  const requestBody = {
+    hostname: globalConfig.hostname,
+    port: globalConfig.port,
+    merge: true
+  };
+  serversInfo.filter(server => server.serverNumber !== getServerNumber() && server.status === "DOWN")
+             .forEach(serverInfo => {
+              console.log("[RECONNECTION] STARTING CONNECTION ", serverInfo);
+              startWebSocketConnection(serverInfo, requestBody);
+             });
+
+  res.writeHead(200);
+  res.end();
 }
 
 function startServer(config) {
@@ -88,6 +106,8 @@ function startServer(config) {
       handleGetAllConversations(req, res);
     } else if (req.method === 'POST' && req.url.startsWith('/cutConnection')){
       handleCutConnection(req,res);
+    } else if (req.method === 'POST' && req.url.startsWith('/reconnect')){
+      handleReconnect(req,res);
     }
     else {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
@@ -105,13 +125,14 @@ function startServer(config) {
   });
 
   wsServer.on('connection', function connection(ws) {
+    console.log("[CONNECTION] SERVER CONNECTED");
 
     ws.on('message', function message(data){
-      const {hostname, port} = JSON.parse(data); 
+      const {hostname, port, merge} = JSON.parse(data); 
 
       const serverInfo = serversInfo.find((s) => s.hostname === hostname && s.port === port);
       const serverConnection = serversConnections.find(sc => sc.serverInfo === serverInfo);
-      console.log("SERVER UP", serverConnection?.serverInfo ?? serverInfo);
+      console.log("[MESSAGE] SERVER UP", serverConnection?.serverInfo ?? serverInfo);
       serverInfo.status = "UP";
       if(serverConnection)
       {
@@ -121,6 +142,8 @@ function startServer(config) {
         serversConnections.push(new ServerConnection(serverInfo, ws));
       }
       
+      if(merge)
+        mergeStateFromPartitionedServer(serverInfo);
     });
     
     ws.on('error', function error(data) {
@@ -147,9 +170,6 @@ function startServer(config) {
 
   });
 
-
-  
-
   if (config.firstServer === true) {
     const newServer = new ServerInfo(config.hostname, config.port, 0, "UP");
     serversInfo.push(newServer);
@@ -170,67 +190,73 @@ function startServer(config) {
       conversations.push(...response.data.conversations_list)
 
       const searchServer = serversInfo.find((s) => s.hostname === config.hostname && s.port === config.port);
+      searchServer.status = "UP";
       assignServerNumber(searchServer.serverNumber);
-      console.log('Server number assigned: ', getServerNumber());
+      console.log('[STARTING] Server number assigned: ', getServerNumber());
 
       if (response.data.need_restore) {
         
         conversationsToRestore = conversations.filter(conv => conv.inServer == getServerNumber());
         const serverToFetch = getReplicateServerNumber(getServerNumber());
-        console.log('Server need restoring, proceeding to fetch conversations from replica server number: ', serverToFetch);
+        console.log('[STARTING] Server need restoring, proceeding to fetch conversations from replica server number: ', serverToFetch);
 
         const url = 'http://' + serversInfo[serverToFetch].hostname + ':' + serversInfo[serverToFetch].port + '/getConversation?id=';
         conversationsToRestore.forEach(conv => {
           const getUrl = url + conv.id;
           axios.get(getUrl).then(response => {
-            console.log('Succesfuly got data from conversation ', conv.id);
+            console.log('[STARTING] Succesfuly got data from conversation ', conv.id);
             console.log(response.data);
             conv.messages.push(...response.data)
             })
             .catch(err => {
-              console.log('Error fetching conversation ', conv.id ,' from replica server.');
+              console.log('[STARTING] Error fetching conversation ', conv.id ,' from replica server.');
               console.log(err);
             });
             })
       }
-      console.log(serversInfo);
-      serversInfo
-      .filter(server => server.serverNumber !== getServerNumber())
-      .forEach(serverInfo => {
-        const socket = new WebSocket(`ws://${serverInfo.hostname}:${serverInfo.port}`);
-        
-        socket.on('open', function open(data){
-          console.log("SERVER UP", serverInfo);
-          serverInfo.status = "UP";
-          socket.send(JSON.stringify(requestBody));
-        })
-
-        socket.on('error', function error(error) {
-          console.log(error);
-          const serverConnection = serversConnections.find(sc => sc.ws === socket);
-          console.log("SERVER DOWN", serverConnection?.serverInfo);
-          serverConnection.serverInfo.status = "DOWN";
-        });
-
-        socket.on('close', function close() {
-          const serverConnection = serversConnections.find(sc => sc.ws === socket);
-          console.log("SERVER DOWN", serverConnection?.serverInfo);
-          serverConnection.serverInfo.status = "DOWN";
-        });
-
-        const serverConnection = serversConnections.find(sc => sc.serverInfo === serverInfo); 
-        if(serverConnection)
-        {
-          serverConnection.ws = socket;
-        }
-        else{
-          serversConnections.push(new ServerConnection(serverInfo, socket));
-        }
-      });
+      console.log("[STARTING] SERVERS INFO",serversInfo);
+      requestBody.merge = false;
+      serversInfo.filter(server => server.serverNumber !== getServerNumber())
+                 .forEach(serverInfo => startWebSocketConnection(serverInfo, requestBody));
     })
     .catch(err => {
       console.log(err);
     });
+  }
+}
+
+function startWebSocketConnection(serverInfo, requestBody){
+  const socket = new WebSocket(`ws://${serverInfo.hostname}:${serverInfo.port}`);
+  console.log("[CONNECTING] STARTING CONNECTION ", serverInfo);
+  
+  socket.on('open', function open(data){
+    console.log("[OPEN] SERVER UP", serverInfo);
+    socket.send(JSON.stringify(requestBody));
+    serverInfo.status = "UP";
+    if(requestBody.merge)
+      mergeStateFromPartitionedServer(serverInfo);
+  })
+
+  socket.on('error', function error(error) {
+    console.log(error);
+    const serverConnection = serversConnections.find(sc => sc.ws === socket);
+    console.log("[ERROR] SERVER DOWN", serverConnection?.serverInfo);
+    serverConnection.serverInfo.status = "DOWN";
+  });
+
+  socket.on('close', function close() {
+    const serverConnection = serversConnections.find(sc => sc.ws === socket);
+    console.log("[CLOSE] SERVER DOWN", serverConnection?.serverInfo);
+    serverConnection.serverInfo.status = "DOWN";
+  });
+
+  const serverConnection = serversConnections.find(sc => sc.serverInfo === serverInfo); 
+  if(serverConnection)
+  {
+    serverConnection.ws = socket;
+  }
+  else{
+    serversConnections.push(new ServerConnection(serverInfo, socket));
   }
 }
 
@@ -266,7 +292,7 @@ fs.readdir(folderPath, (err, files) => {
     const configFileName = answers.selectedOption;
     console.log(`You selected: ${configFileName}`);
   
-    const config = require(`./${configFileName}`);
-    startServer(config);
+    globalConfig = require(`./${configFileName}`);
+    startServer(globalConfig);
   });
 });

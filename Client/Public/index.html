@@ -109,7 +109,6 @@
                         }
                     })
                     .then(data => {
-                        alert(data);
                         console.log('Logging user: ', username)
                         sessionStorage.setItem('username', username);
                         window.location.href = '/messages.html';
@@ -184,7 +183,6 @@
                         }
                     })
                     .then(data => {
-                        alert(data);
                     })
                     .then(back())
                     .catch(error => {
