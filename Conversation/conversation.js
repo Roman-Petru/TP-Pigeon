@@ -127,9 +127,6 @@ function getConversationFromOtherServer(serverNumber, convId) {
   })
   .catch(err => {
       console.log(err);
-      console.log("Server error trying to get conversation, putting it down and sending it to other servers");
-      putServerDown(serverToFetch)
-      notifyAllServers("serverDown", serverToFetch, serverToFetch)
   });
 }
 

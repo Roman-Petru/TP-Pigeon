@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { unixTimestamp } = require('./utils');
 
 class ServerInfo{
     constructor(hostname, port, serverNumber, status) {
@@ -79,9 +80,6 @@ function notifyAllServers(type, content, exceptionServer) {
       })
       .catch(err => {
           console.log(err);
-          console.log("Server error trying to notify, putting it down and sending it to other servers");
-          putServerDown(server.serverNumber)
-          notifyAllServers("serverDown", server.serverNumber, server.serverNumber)
       });
 
   })
@@ -150,6 +148,7 @@ function handleNewServer(req, res) {
         const user = users.find((u) => u.username === newAdminUsername);
 
         conversation.admins.push(user);
+        conversation.last_modified = unixTimestamp();
 
       } else if (type === "newUserInConv") {
 
@@ -159,6 +158,7 @@ function handleNewServer(req, res) {
         const user = users.find((u) => u.username === newUserUsername);
 
         conversation.users.push(user);
+        conversation.last_modified = unixTimestamp();
 
       } else if (type === "deleteUserInConv") {
 
@@ -168,6 +168,7 @@ function handleNewServer(req, res) {
 
         conversation.users = conversation.users.filter(user => user.username !== deletedUserUsername)
         conversation.admins = conversation.admins.filter(admin => admin.username !== deletedUserUsername)
+        conversation.last_modified = unixTimestamp();
 
       } else if (type === "serverDown") {
         putServerDown(content)

@@ -34,15 +34,18 @@ function notifyNewMessage(serverNumber, requestData) {
 
   console.log("Notifiyng server number ", serverNumber);
   console.log("New message: ", JSON.stringify(requestData));
+
+  if(isServerDown(serverNumber))
+  {
+    console.log("Server ", serverNumber, " DOWN, not notifying.");
+    return;
+  }
   
   axios.patch(url, requestData).then(response => {
     console.log("Message sent, response: ", response.data);
   })
   .catch(err => {
       console.log(err);
-      console.log("Server error trying to send message, putting it down and sending it to other servers");
-      putServerDown(serverNumber)
-      notifyAllServers("serverDown", serverNumber, serverNumber)
   });
 }
 
@@ -53,13 +56,17 @@ function notifyDeleteMessage(serverNumber, requestData) {
   console.log("Notifiyng server number ", serverNumber);
   console.log("Message to delete: ", JSON.stringify(requestData));
 
+  if(isServerDown(serverNumber))
+  {
+    console.log("Server ", serverNumber, " DOWN, not notifying.");
+    return;
+  }
+
   axios.post(url, requestData).then(response => {
     console.log("Message deleted, response: ", response.data);
   })
   .catch(err => {
       console.log(err);
-      putServerDown(serverNumber)
-      notifyAllServers("serverDown", serverNumber, serverNumber)
   });
 }
 
@@ -86,9 +93,6 @@ function replicateNewMessage(conversationId, newMessage) {
   })
   .catch(err => {
       console.log(err);
-      console.log("Server error trying to send message, putting it down and sending it to other servers");
-      putServerDown(serverToReplicate)
-      notifyAllServers("serverDown", serverToReplicate, serverToReplicate)
   });
 }
 
@@ -97,21 +101,24 @@ function replicateDeleteMessage(conversationId, messageId) {
   const serverToReplicate = getReplicateServerNumber(getServerNumber());
   const url = 'http://' + serversInfo[serverToReplicate].hostname + ':' + serversInfo[serverToReplicate].port + '/replicateDeleteMessage';
 
-  console.log("Replicating to server number ", serverToReplicate);
-
   const infoToReplicate = {
     conversationId: conversationId,
-    message: messageId
+    messageId: messageId
   }
+
+  if(isServerDown(serverToReplicate))
+  {
+    console.log("Servidor para replicar caido, no se replica el borrado de mensaje");
+    return;
+  }
+
+  console.log("Replicating to server number ", serverToReplicate, " - Message to delete: ", infoToReplicate);
 
   axios.post(url, infoToReplicate).then(response => {
     console.log("Message deleted, response: ", response.data);
   })
   .catch(err => {
       console.log(err);
-      console.log("Server error trying to delete message, putting it down and sending it to other servers");
-      putServerDown(serverToReplicate)
-      notifyAllServers("serverDown", serverToReplicate, serverToReplicate)
   });
 }
 
@@ -241,7 +248,7 @@ function handleDeleteMessage(req, res) {
             res.writeHead(200, { 'Content-Type': 'text/plain' });
             res.end('Message deleted successfully!\n');
           } else {
-            notifyNewMessage(getReplicateServerNumber(conversation.inServer), requestData)
+            notifyDeleteMessage(getReplicateServerNumber(conversation.inServer), requestData);
             res.writeHead(200, { 'Content-Type': 'text/plain' });
             res.end('Message deleted successfully!\n');
           }
