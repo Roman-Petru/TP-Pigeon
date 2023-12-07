@@ -148,8 +148,13 @@
             listOfNotifications.forEach(convId => {
                 if (notifTextDictionary.hasOwnProperty(convId)) {
                     const notifText = notifTextDictionary[convId];
-                    if (notifText) {
+                    if(currentConversationId === convId) {
+                        loadConversation(convId);
+                        listOfNotifications = listOfNotifications.filter(converId => converId !== convId);
+                    } else {
+                        if (notifText) {
                         notifText.style.visibility = 'visible';
+                        }
                     }
                 } else {
                     console.log('Not found on the Dictionary: ', convId);

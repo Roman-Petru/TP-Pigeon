@@ -14,7 +14,7 @@ function mergeStateFromPartitionedServer(server){
             //filtro nuevos usuarios
             const newUsers = data.users_list.filter(user => !users.some(_user => _user.username === user.username));
             console.log("Merging from Server number ", server.serverNumber," - New users: ", newUsers);
-            users.push(newUsers);
+            users.push(...newUsers);
                         
             //filtro nuevas convers
             const newConvers = data.conversations_list.filter(
@@ -22,7 +22,7 @@ function mergeStateFromPartitionedServer(server){
             );
 
             console.log("Merging from Server number ", server.serverNumber," - New conversations: ", newConvers);
-            conversations.push(newConvers)
+            conversations.push(...newConvers)
             
             let newConversations = conversations.map(conver => {
                 let converReplica = data.conversations_list.find(_conver => _conver.id === conver.id);

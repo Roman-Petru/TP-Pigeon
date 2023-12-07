@@ -202,7 +202,7 @@ function handleAddAdmin(req, res) {
       conversation.admins.some(admin => admin.username === userAddingAdmin) && 
       conversation.users.some(users => users.username === newAdminUsername)) {
 
-      conversation.users.push(findUser(newAdminUsername));
+      conversation.admins.push(findUser(newAdminUsername));
 
       notifyAllServers("newAdmin", requestData, -1)
   
