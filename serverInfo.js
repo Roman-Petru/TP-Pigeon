@@ -15,6 +15,10 @@ let conversations = [];
 
 let serverNumber;
 
+function changeConversations(newConversations) {
+  conversations = newConversations;
+}
+
 function assignServerNumber(number) {
     serverNumber = number;
 }
@@ -24,9 +28,10 @@ function getServerNumber() {
 }
 
 function getReplicateServerNumber(number) {
-  if (serversInfo.length <= number + 1) {
+  let toInt = parseInt(number);
+  if (serversInfo.length <= toInt + 1) {
     return 0;
-  } else return (number + 1);
+  } else return (toInt + 1);
 }
 
 function isServerDown(number) {
@@ -184,6 +189,7 @@ module.exports = {
     serversInfo,
     users,
     conversations,
+    changeConversations,
     getMetaInformation,
     assignServerNumber,
     getServerNumber,

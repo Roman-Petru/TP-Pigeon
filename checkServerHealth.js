@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { serversInfo, conversations, users , getServerNumber, putServerDown, putServerUp, getReplicateServerNumber } = require('./serverInfo');
+const { serversInfo, conversations, users , changeConversations, getServerNumber, putServerDown, putServerUp, getReplicateServerNumber } = require('./serverInfo');
 
 function checkServerHealth() {
     const serversToSend = serversInfo.filter(server => getServerNumber() != server.serverNumber)
@@ -28,25 +28,28 @@ function checkServerHealth() {
 function mergeStateFromPartitionedServer(server){
     const urlServerInfo = 'http://' + server.hostname + ':' + server.port + '/getServerInfo';
     const serverNumber = getServerNumber();
-    const isReplicateServer = getReplicateServerNumber(serverNumber) === server.serverNumber;
+    const isReplicateServer = getReplicateServerNumber(serverNumber) == server.serverNumber;
+    const iAmTheReplicaServer = getReplicateServerNumber(server.serverNumber) == serverNumber;
     
     console.log("Mergin state from ", server)
     //Busco la metainfo (usuarios y conversaciones)
     axios.get(urlServerInfo).then((res) => {
             const data = res.data;
-            console.log("Data to merge ", data);
             //filtro nuevos usuarios
             const newUsers = data.users_list.filter(user => !users.some(_user => _user.username === user.username));
+            console.log("Merging from Server number ", server.serverNumber," - New users: ", newUsers);
             users.push(newUsers);
-            
+                        
             //filtro nuevas convers
             const newConvers = data.conversations_list.filter(
                 conver => !conversations.some(_conver => _conver.id === conver.id)
             );
+
+            console.log("Merging from Server number ", server.serverNumber," - New conversations: ", newConvers);
             conversations.push(newConvers)
             
-            conversations = conversations.map(conver => {
-                const converReplica = data.conversations_list.find(_conver => _conver.id === conver.id);
+            let newConversations = conversations.map(conver => {
+                let converReplica = data.conversations_list.find(_conver => _conver.id === conver.id);
 
                 if(!converReplica || conver.last_modified >= converReplica.last_modified)
                 {
@@ -59,14 +62,20 @@ function mergeStateFromPartitionedServer(server){
                 }
             });
 
-            //si no es la replica, termino
-            if(!isReplicateServer)
+            changeConversations(newConversations);
+
+            //si no es la replica y yo no soy la replica, termino
+            
+            console.log("Merging from Server number ", server.serverNumber," - isReplicateServer: ", isReplicateServer, " - iAmTheReplicaServer: ", iAmTheReplicaServer);
+            if(!isReplicateServer && !iAmTheReplicaServer)
                 return;
             
-            //si es la replica, entonces busco las convers que tengo que hacer update
-            const conversToUpdate = conversations.filter(
-                conver => conver.inServer === serverNumber
+            //si es la replica o soy la replica, entonces busco las convers que tengo que hacer update
+            let conversToUpdate = conversations.filter(
+                conver => conver.inServer === serverNumber || getReplicateServerNumber(conver.inServer) === serverNumber
             );
+
+            console.log("Merging from Server number ", server.serverNumber," - Conversations to update: ", JSON.stringify(conversToUpdate));
             
             const urlGetConversation = 'http://' + server.hostname + ':' + server.port + '/getConversation';
             
@@ -78,7 +87,8 @@ function mergeStateFromPartitionedServer(server){
                     const newMessages = res.data.filter(message => 
                         !conver.messages.some(_message => _message.id === message.id)
                     );
-                    conver.messages.push(newMessages);
+                    console.log("Merging from Server number ", server.serverNumber," - Conversations to update messages: ", conver.id, " - new Messages: ", newMessages);
+                    conver.messages.push(...newMessages);
                 })
                 .catch(err => {
                     console.log(err);
