@@ -99,12 +99,12 @@ function handleNewServer(req, res) {
       let needRestore;
 
       if (searchServer) {
-        searchServer.status = "UP";
+        searchServer.status = "DOWN";
         if (!isServerDown(getReplicateServerNumber(searchServer.serverNumber))) {
           needRestore = true;
         }
       } else {
-        const newServer = new ServerInfo(hostname, port, serversInfo.length, "UP");
+        const newServer = new ServerInfo(hostname, port, serversInfo.length, "DOWN");
         serversInfo.push(newServer);
         notifyAllServers("newServer", newServer, newServer.serverNumber);
         needRestore = false;
