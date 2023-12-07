@@ -234,7 +234,7 @@ function startWebSocketConnection(serverInfo, requestBody){
     socket.send(JSON.stringify(requestBody));
     serverInfo.status = "UP";
     if(requestBody.merge)
-      mergeStateFromPartitionedServer(server);
+      mergeStateFromPartitionedServer(serverInfo);
   })
 
   socket.on('error', function error(error) {

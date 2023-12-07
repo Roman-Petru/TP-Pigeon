@@ -11,7 +11,7 @@ class ServerInfo{
 
 const serversInfo = [];
 const users = [];
-const conversations = [];
+let conversations = [];
 
 let serverNumber;
 

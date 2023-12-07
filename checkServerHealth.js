@@ -30,10 +30,11 @@ function mergeStateFromPartitionedServer(server){
     const serverNumber = getServerNumber();
     const isReplicateServer = getReplicateServerNumber(serverNumber) === server.serverNumber;
     
+    console.log("Mergin state from ", server)
     //Busco la metainfo (usuarios y conversaciones)
     axios.get(urlServerInfo).then((res) => {
             const data = res.data;
-
+            console.log("Data to merge ", data);
             //filtro nuevos usuarios
             const newUsers = data.users_list.filter(user => !users.some(_user => _user.username === user.username));
             users.push(newUsers);
@@ -44,17 +45,27 @@ function mergeStateFromPartitionedServer(server){
             );
             conversations.push(newConvers)
             
+            conversations = conversations.map(conver => {
+                const converReplica = data.conversations_list.find(_conver => _conver.id === conver.id);
+
+                if(!converReplica || conver.last_modified >= converReplica.last_modified)
+                {
+                    return conver;
+                }
+                else
+                {
+                    converReplica.messages = conver.messages;
+                    return converReplica;
+                }
+            });
+
             //si no es la replica, termino
             if(!isReplicateServer)
                 return;
             
             //si es la replica, entonces busco las convers que tengo que hacer update
             const conversToUpdate = conversations.filter(
-                conver => conver.inServer === serverNumber 
-                        && data.conversations_list.some(
-                            _conver => _conver.id === conver.id 
-                                        && _conver.last_modified > conver.last_modified
-                            )
+                conver => conver.inServer === serverNumber
             );
             
             const urlGetConversation = 'http://' + server.hostname + ':' + server.port + '/getConversation';
@@ -70,12 +81,14 @@ function mergeStateFromPartitionedServer(server){
                     conver.messages.push(newMessages);
                 })
                 .catch(err => {
+                    console.log(err);
                     console.log("Server number ", server.serverNumber, " throwed error while fetching conver ", conver.id);
                 });
             })
 
         })
         .catch(err => {
+            console.log(err);
             if (server.status === "UP") {
                 putServerDown(server.serverNumber)
                 console.log("Server number ", server.serverNumber, " throwed error while merging, changed status to DOWN");

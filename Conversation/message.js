@@ -34,7 +34,7 @@ function notifyNewMessage(serverNumber, requestData) {
 
   console.log("Notifiyng server number ", serverNumber);
   console.log("New message: ", JSON.stringify(requestData));
-
+  
   axios.patch(url, requestData).then(response => {
     console.log("Message sent, response: ", response.data);
   })
@@ -73,6 +73,12 @@ function replicateNewMessage(conversationId, newMessage) {
   const infoToReplicate = {
     conversationId: conversationId,
     message: newMessage
+  }
+
+  if(isServerDown(serverToReplicate))
+  {
+    console.log("Servidor para replicar caido, no se replica el nuevo mensaje");
+    return;
   }
 
   axios.patch(url, infoToReplicate).then(response => {
