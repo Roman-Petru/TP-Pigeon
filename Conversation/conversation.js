@@ -12,28 +12,28 @@ class Conversation {
       this.users = [];
       this.messages = [];
       this.inServer = inServer;
-      this.last_modified = unixTimestamp()
+      this.last_modified = unixTimestamp();
     }
 
     addUser(user) {
         this.users.push(user);
-        last_modified = unixTimestamp();
+        this.last_modified = unixTimestamp();
       }
 
     deleteUser(username) {
       this.users = this.users.filter(user => user.username !== username)
       this.admins = this.admins.filter(admin => admin.username !== username)
-      last_modified = unixTimestamp();
+      this.last_modified = unixTimestamp();
     }
 
     addAdmin(user) {
       this.admins.push(user);
-      last_modified = unixTimestamp();
+      this.last_modified = unixTimestamp();
     }
 
     addMessage(message){
       messages.push(message);
-      last_modified = unixTimestamp();
+      this.last_modified = unixTimestamp();
     }
 }
 
@@ -144,8 +144,9 @@ function handleGetConversation(req, res) {
 
   if (conversation) {
     if (conversation.inServer === getServerNumber() || getReplicateServerNumber(conversation.inServer) === getServerNumber()) {
+      const visibleMessages = conversation.messages.filter(msg => msg.visibility > new Date());
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(conversation.messages));
+      res.end(JSON.stringify(visibleMessages));
     } else {
       getConversationFromOtherServer(conversation.inServer, id)
         .then(convFromOtherServer => {
