@@ -5,7 +5,7 @@ const axios = require('axios');
 const { handleAddUserRequest, handleLoginRequest } = require('./users');
 const { ServerInfo, serversInfo, users, conversations, getMetaInformation, assignServerNumber, getServerNumber, handleNotification, handleNewServer, getReplicateServerNumber } = require('./serverInfo');
 const { handleNewConversation, handleGetConversation, handleGetAllConversations, handleAddAdmin, handleAddUserToConversation, handleDeleteUserFromConversation } = require('./Conversation/conversation');
-const { handleNewMessage, handleReplicateMessage } = require('./Conversation/message');
+const { handleNewMessage, handleReplicateMessage, handleDeleteMessage, handleReplicateDeleteMessage } = require('./Conversation/message');
 const { checkServerHealth, mergeStateFromPartitionedServer } = require('./checkServerHealth');
 const { WebSocketServer, WebSocket } = require('ws')
 const url = require('url');
@@ -88,8 +88,12 @@ function startServer(config) {
       handleNewConversation(req, res);
     } else if (req.method === 'PATCH' && req.url === '/newMessage') {
       handleNewMessage(req, res);
+    } else if (req.method === 'POST' && req.url === '/deleteMessage') {
+      handleDeleteMessage(req, res);
     } else if (req.method === 'PATCH' && req.url === '/replicateMessage') {
       handleReplicateMessage(req, res);
+    } else if (req.method === 'POST' && req.url === '/replicateDeleteMessage') {
+      handleReplicateDeleteMessage(req, res);
     } else if (req.method === 'PATCH' && req.url === '/addAdmin') {
       handleAddAdmin(req, res);
     } else if (req.method === 'PATCH' && req.url === '/addUserToConv') {

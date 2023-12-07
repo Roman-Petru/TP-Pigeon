@@ -10,8 +10,8 @@ class Message {
       this.message = message;
       this.time = new Date();
 
-      let currentDate = new Date();
-      currentDate.setSeconds(currentDate.getSeconds() + secondsForVisibility);
+      let currentDate = unixTimestamp();
+      currentDate = currentDate + secondsForVisibility;
 
       this.visibility = currentDate;
     }
@@ -24,6 +24,7 @@ function createMessage(conversation, sender, message, secondsForVisibility) {
     conversation.messages.push(newMessage);
     conversation.last_modified = unixTimestamp();
     console.log(`Message "${newMessage.message}" with id ${messageId} added to the conversation ${conversation.id} at ${newMessage.time}.`);
+    console.log(conversation);
     return newMessage;
 }
 
@@ -40,6 +41,23 @@ function notifyNewMessage(serverNumber, requestData) {
   .catch(err => {
       console.log(err);
       console.log("Server error trying to send message, putting it down and sending it to other servers");
+      putServerDown(serverNumber)
+      notifyAllServers("serverDown", serverNumber, serverNumber)
+  });
+}
+
+function notifyDeleteMessage(serverNumber, requestData) {
+
+  const url = 'http://' + serversInfo[serverNumber].hostname + ':' + serversInfo[serverNumber].port + '/deleteMessage';
+
+  console.log("Notifiyng server number ", serverNumber);
+  console.log("Message to delete: ", JSON.stringify(requestData));
+
+  axios.post(url, requestData).then(response => {
+    console.log("Message deleted, response: ", response.data);
+  })
+  .catch(err => {
+      console.log(err);
       putServerDown(serverNumber)
       notifyAllServers("serverDown", serverNumber, serverNumber)
   });
@@ -63,6 +81,29 @@ function replicateNewMessage(conversationId, newMessage) {
   .catch(err => {
       console.log(err);
       console.log("Server error trying to send message, putting it down and sending it to other servers");
+      putServerDown(serverToReplicate)
+      notifyAllServers("serverDown", serverToReplicate, serverToReplicate)
+  });
+}
+
+function replicateDeleteMessage(conversationId, messageId) {
+
+  const serverToReplicate = getReplicateServerNumber(getServerNumber());
+  const url = 'http://' + serversInfo[serverToReplicate].hostname + ':' + serversInfo[serverToReplicate].port + '/replicateDeleteMessage';
+
+  console.log("Replicating to server number ", serverToReplicate);
+
+  const infoToReplicate = {
+    conversationId: conversationId,
+    message: messageId
+  }
+
+  axios.post(url, infoToReplicate).then(response => {
+    console.log("Message deleted, response: ", response.data);
+  })
+  .catch(err => {
+      console.log(err);
+      console.log("Server error trying to delete message, putting it down and sending it to other servers");
       putServerDown(serverToReplicate)
       notifyAllServers("serverDown", serverToReplicate, serverToReplicate)
   });
@@ -128,9 +169,35 @@ function handleReplicateMessage(req, res) {
 
     if (conversation) {
 
+      console.log(message);
       conversation.messages.push(message);
       conversation.last_modified = unixTimestamp();
       console.log(`For replication: Message "${message.message}" with id ${message.id} added to the conversation ${conversation.id} at ${message.time}.`);
+      console.log(JSON.stringify(conversation));
+    } else {
+      res.writeHead(401, { 'Content-Type': 'text/plain' });
+      res.end('Conversation not found.\n');
+    }
+  });
+}
+
+function handleReplicateDeleteMessage(req, res) {
+  let data = '';
+
+  req.on('data', (chunk) => {
+    data += chunk;
+  });
+
+  req.on('end', () => {
+    const requestData = JSON.parse(data);
+    const { conversationId, messageId } = requestData;
+
+    const conversation = findConversation(conversationId);
+
+    if (conversation) {
+
+      conversation.messages = conversation.messages.filter(msg => msg.id !== messageId);
+      console.log(`For replication: Deleted message with id ${messageId} in the conversation ${conversation.id}.`);
 
     } else {
       res.writeHead(401, { 'Content-Type': 'text/plain' });
@@ -139,9 +206,57 @@ function handleReplicateMessage(req, res) {
   });
 }
   
+function handleDeleteMessage(req, res) {
+  let data = '';
+
+  req.on('data', (chunk) => {
+    data += chunk;
+  });
+
+  req.on('end', () => {
+    const requestData = JSON.parse(data);
+    const { conversationId, messageId } = requestData;
+
+    const conversation = findConversation(conversationId);
+
+    if (conversation) {
+      if (conversation.inServer === getServerNumber()) {
+        console.log(conversation.messages);
+        conversation.messages = conversation.messages.filter(msg => msg.id !== messageId);
+        console.log(conversation.messages);
+        replicateDeleteMessage(conversationId, messageId);
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('Message deleted successfully!\n');
+      } else {
+        // si el server que tiene la conversacion esta caido le mando a la replica, excepto que estes parado en la replica
+        if (isServerDown(conversation.inServer)) {
+          if (getServerNumber() === getReplicateServerNumber(conversation.inServer)) {
+            conversation.messages = conversation.messages.filter(msg => msg.id !== messageId);
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.end('Message deleted successfully!\n');
+          } else {
+            notifyNewMessage(getReplicateServerNumber(conversation.inServer), requestData)
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.end('Message deleted successfully!\n');
+          }
+        } else { // El server donde va el mensaje esta UP, se manda a ese server
+          notifyDeleteMessage(conversation.inServer, requestData)
+          res.writeHead(200, { 'Content-Type': 'text/plain' });
+          res.end('Message deleted successfully!\n');
+        }
+      }
+    } else {
+      res.writeHead(401, { 'Content-Type': 'text/plain' });
+      res.end('Conversation not found.\n');
+    }
+
+  });
+}
   
   module.exports = {
     handleNewMessage,
-    handleReplicateMessage
+    handleReplicateMessage,
+    handleDeleteMessage,
+    handleReplicateDeleteMessage
   };
   
