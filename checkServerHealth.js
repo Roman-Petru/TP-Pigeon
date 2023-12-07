@@ -84,5 +84,6 @@ function mergeStateFromPartitionedServer(server){
 }
 
 module.exports = {
-    checkServerHealth
+    checkServerHealth,
+    mergeStateFromPartitionedServer
   };

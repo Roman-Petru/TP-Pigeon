@@ -6,7 +6,7 @@ const { handleAddUserRequest, handleLoginRequest } = require('./users');
 const { ServerInfo, serversInfo, users, conversations, getMetaInformation, assignServerNumber, getServerNumber, handleNotification, handleNewServer, getReplicateServerNumber } = require('./serverInfo');
 const { handleNewConversation, handleGetConversation, handleGetAllConversations, handleAddAdmin, handleAddUserToConversation, handleDeleteUserFromConversation } = require('./Conversation/conversation');
 const { handleNewMessage, handleReplicateMessage } = require('./Conversation/message');
-const { checkServerHealth } = require('./checkServerHealth');
+const { checkServerHealth, mergeStateFromPartitionedServer } = require('./checkServerHealth');
 const { WebSocketServer, WebSocket } = require('ws')
 const url = require('url');
 const querystring = require('querystring');
@@ -38,6 +38,7 @@ function handleReconnect(req, res){
   const requestBody = {
     hostname: globalConfig.hostname,
     port: globalConfig.port,
+    merge: true
   };
   serversInfo.filter(server => server.serverNumber !== getServerNumber() && server.status === "DOWN")
              .forEach(serverInfo => {
@@ -123,7 +124,7 @@ function startServer(config) {
     console.log("[CONNECTION] SERVER CONNECTED");
 
     ws.on('message', function message(data){
-      const {hostname, port} = JSON.parse(data); 
+      const {hostname, port, merge} = JSON.parse(data); 
 
       const serverInfo = serversInfo.find((s) => s.hostname === hostname && s.port === port);
       const serverConnection = serversConnections.find(sc => sc.serverInfo === serverInfo);
@@ -137,6 +138,8 @@ function startServer(config) {
         serversConnections.push(new ServerConnection(serverInfo, ws));
       }
       
+      if(merge)
+        mergeStateFromPartitionedServer(serverInfo);
     });
     
     ws.on('error', function error(data) {
@@ -208,6 +211,7 @@ function startServer(config) {
             })
       }
       console.log("[STARTING] SERVERS INFO",serversInfo);
+      requestBody.merge = false;
       serversInfo.filter(server => server.serverNumber !== getServerNumber())
                  .forEach(serverInfo => startWebSocketConnection(serverInfo, requestBody));
     })
@@ -225,6 +229,8 @@ function startWebSocketConnection(serverInfo, requestBody){
     console.log("[OPEN] SERVER UP", serverInfo);
     socket.send(JSON.stringify(requestBody));
     serverInfo.status = "UP";
+    if(requestBody.merge)
+      mergeStateFromPartitionedServer(server);
   })
 
   socket.on('error', function error(error) {
